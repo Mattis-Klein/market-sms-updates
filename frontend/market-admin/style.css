@@ -1,0 +1,72 @@
+:root {
+    --bg: radial-gradient(circle at top right, #ffd9a6 0%, #f9f5ec 40%, #d9efe4 100%);
+    --ink: #1d2b29;
+    --accent: #db5f2d;
+    --card: rgba(255, 255, 255, 0.75);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+}
+
+.wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 20px;
+    display: grid;
+    gap: 16px;
+}
+
+header h1 {
+    margin: 0;
+    letter-spacing: 0.03em;
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    padding: 14px;
+    backdrop-filter: blur(4px);
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+}
+
+input,
+button {
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+button {
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+}
+
+pre {
+    white-space: pre-wrap;
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px;
+    min-height: 60px;
+}
+
+@media (max-width: 760px) {
+    .row {
+        grid-template-columns: 1fr;
+    }
+}

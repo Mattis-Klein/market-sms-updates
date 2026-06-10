@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Market Updates Admin</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <main class="wrap">
+        <header>
+            <h1>Market Updates Admin</h1>
+            <p>Allowlist, Invite Requests, and Feedback Operations</p>
+        </header>
+
+        <section class="card">
+            <h2>Connection</h2>
+            <label>API Base URL</label>
+            <input id="apiBase" value="https://yeshivachill.com" />
+            <label>Admin Token</label>
+            <input id="adminToken" placeholder="MARKET_ADMIN_TOKEN" />
+            <button id="saveConfig">Save Config</button>
+        </section>
+
+        <section class="card">
+            <h2>Allowlist</h2>
+            <div class="row">
+                <input id="allowPhone" placeholder="+18775551234" />
+                <input id="allowLabel" placeholder="Label" />
+                <button id="addAllow">Add / Update</button>
+            </div>
+            <button id="refreshAllow">Refresh</button>
+            <pre id="allowOut"></pre>
+        </section>
+
+        <section class="card">
+            <h2>Invite Requests</h2>
+            <button id="refreshInvites">Refresh</button>
+            <pre id="inviteOut"></pre>
+        </section>
+
+        <section class="card">
+            <h2>Feedback Feed</h2>
+            <button id="refreshFeedback">Refresh</button>
+            <pre id="feedbackOut"></pre>
+        </section>
+    </main>
+    <script src="app.js"></script>
+</body>
+
+</html>
