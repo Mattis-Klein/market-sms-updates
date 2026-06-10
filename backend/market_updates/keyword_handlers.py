@@ -20,8 +20,10 @@ from .sms_sender import send_sms
 
 
 HELP_TEXT = (
-    "MENU: CHECK <symbols> | DATECHECK YYYY-MM-DD <symbols> | "
-    "TICKER <query> | FEEDBACK <text> | REMIND | LIST | STOP"
+    "Market SMS Assistant helps you check dates, look up stock/ticker info, set market reminders, and send feedback by text. "
+    "You can text: CHECK - see available checks; DATECHECK - check market/date info; TICKER - look up a ticker; "
+    "REMIND - create a reminder; LIST - see your reminders; STOP - cancel reminders; "
+    "FEEDBACK - send feedback or request access. Reply with any keyword to continue."
 )
 
 
