@@ -19,11 +19,11 @@ from .notifications import create_notification, list_notifications, summarize_no
 from .sms_sender import send_sms
 
 
-HELP_TEXT = (
-    "Market SMS Assistant helps you check dates, look up stock/ticker info, set market reminders, and send feedback by text. "
-    "You can text: CHECK - see available checks; DATECHECK - check market/date info; TICKER - look up a ticker; "
-    "REMIND - create a reminder; LIST - see your reminders; STOP - cancel reminders; "
-    "FEEDBACK - send feedback or request access. Reply with any keyword to continue."
+MENU_TEXT = (
+    "Market SMS Assistant helps you check market/date info, look up tickers, set text reminders, and send feedback. "
+    "Keywords: CHECK - see available checks; DATECHECK - check market/date info; TICKER - look up ticker info; "
+    "REMIND - create a reminder; LIST - see reminders; CANCELREMINDER - cancel a reminder; "
+    "FEEDBACK - send feedback or request access. Reply with a keyword to continue."
 )
 
 
@@ -47,15 +47,15 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         return _twiml_message(blocked)
 
     session = db.get_session(sender)
-    if normalized in {"STOP", "CANCEL"}:
+    if normalized == "STOP":
         db.clear_session(sender)
         return _twiml_message("Canceled. Send MENU for commands.")
 
     if session:
         return _twiml_message(await _continue_session(db, sender, normalized, session["state"], session["draft"]))
 
-    if normalized in {"HELP", "MENU"}:
-        return _twiml_message(HELP_TEXT)
+    if normalized == "MENU":
+        return _twiml_message(MENU_TEXT)
 
     if normalized.startswith("CHECK"):
         symbols = parse_check_symbols(normalized)
@@ -111,6 +111,12 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
 
     if normalized in {"LIST", "NOTIFICATIONS", "ALERTS"}:
         return _twiml_message(_render_notifications(db, sender))
+
+    if normalized.startswith("CANCELREMINDER"):
+        parts = normalized.split()
+        if len(parts) != 2 or not parts[1].isdigit():
+            return _twiml_message("Usage: CANCELREMINDER <index>. Send LIST first.")
+        return _twiml_message(_apply_notification_action(db, sender, "DELETE", int(parts[1])))
 
     action = parse_list_action(normalized)
     if action:

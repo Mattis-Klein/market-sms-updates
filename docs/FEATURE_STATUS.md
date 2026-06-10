@@ -4,7 +4,7 @@ Date: 2026-06-09
 
 Implemented in this rebuild:
 - Twilio webhook endpoint at /api/market-updates/sms.
-- Commands: HELP/MENU, CHECK, DATECHECK, TICKER/LOOKUP/FIND, FEEDBACK, REMIND, LIST, STOP/CANCEL.
+- Commands: MENU, CHECK, DATECHECK, TICKER/LOOKUP/FIND, FEEDBACK, REMIND, LIST, CANCELREMINDER, STOP.
 - Invite request flow for non-allowlisted users.
 - Approver commands: PENDING, YES <id>, NO <id>.
 - Notification creation flow for PRICE/ONCE/DAILY/INTERVAL reminder types.

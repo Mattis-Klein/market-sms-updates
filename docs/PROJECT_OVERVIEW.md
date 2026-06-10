@@ -10,6 +10,7 @@ Primary capabilities:
 - Admin API for allowlist/invites/feedback.
 - Notification runner for due reminders and price alerts.
 - Optional feedback portal with ingest endpoint.
+- MENU as the main SMS command to show app description and available keywords.
 
 Target host:
 - https://yeshivachill.com

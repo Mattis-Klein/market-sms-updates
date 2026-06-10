@@ -50,14 +50,15 @@ Responsibilities:
 - Creates and persists notifications.
 
 Key user-visible commands:
-- HELP, MENU
+- MENU
 - CHECK
 - DATECHECK
 - TICKER, LOOKUP, FIND
 - FEEDBACK
 - REMIND
 - LIST
-- STOP, CANCEL
+- CANCELREMINDER
+- STOP
 
 ### 3.2 Keyword and Symbol Parsing
 
@@ -200,8 +201,8 @@ Before command processing:
 
 ### 4.3 Top-Level Allowed User Commands
 
-HELP / MENU:
-- Returns primary command menu.
+MENU:
+- Returns primary command menu and feature description.
 
 CHECK:
 - Single-keyword flow with menus, or direct list mode: CHECK BTC AAPL TSLA.
@@ -225,8 +226,12 @@ LIST / NOTIFICATIONS / ALERTS:
 - Shows user notifications with status and human-formatted datetime.
 - Supports DELETE n, PAUSE n, RESUME n.
 
-STOP / CANCEL:
-- Cancels in-progress setup state.
+CANCELREMINDER:
+- Syntax: CANCELREMINDER <index>
+- Deletes a reminder by its LIST index.
+
+STOP:
+- Twilio compliance keyword; SMS opt-out behavior is handled by Twilio.
 
 ## 5) Reminder Types and Setup Behavior
 

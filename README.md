@@ -8,6 +8,9 @@ This repository rebuilds the full market SMS assistant product with:
 - Admin API and admin web UI.
 - Feedback storage and optional feedback portal forwarding.
 
+Main SMS command:
+- MENU (returns assistant description and available safe keywords).
+
 ## 1) Folder Layout
 
 - `backend/` FastAPI app and market feature modules.
