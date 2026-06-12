@@ -54,6 +54,7 @@ Key user-visible commands:
 - CHECK
 - DATECHECK
 - TICKER, LOOKUP, FIND
+- BEAST
 - FEEDBACK
 - REMIND
 - LIST
@@ -93,6 +94,17 @@ Current accuracy behavior:
 Important note:
 - This improves practical accuracy and freshness for SMS usage.
 - It is not an exchange-licensed, guaranteed real-time market data feed.
+
+### 3.3.1 YouTube Subscriber Lookup
+
+File: youtube_service.py
+Responsibilities:
+- Fetch MrBeast channel statistics from YouTube Data API v3.
+- Parse statistics.subscriberCount.
+- Format subscriber count with comma separators for SMS output.
+
+Required env var:
+- YOUTUBE_API_KEY
 
 ### 3.4 Notification Persistence and Summaries
 
@@ -136,6 +148,7 @@ Responsibilities:
 - Upsert/disable allowlist entries.
 - Create/list/approve/deny invite requests.
 - Seed allowlist from environment.
+- Parse permanent env allowlist from MARKET_UPDATES_ALLOWED_NUMBERS.
 
 Normalization behavior:
 - Canonicalizes US 10-digit to +1XXXXXXXXXX.
@@ -148,6 +161,11 @@ Approval workflow support:
 - Approver commands:
   - PENDING
   - YES <id>
+
+Permanent env allowlist behavior:
+- MARKET_UPDATES_ALLOWED_NUMBERS is parsed as a comma-separated list and normalized.
+- Env-listed numbers are always allowed at inbound access check time.
+- Env-listed numbers are synced to market_sms_allowlist on startup.
 
 ### 3.7 Feedback Intake and Forwarding
 
@@ -215,6 +233,10 @@ DATECHECK:
 TICKER / LOOKUP / FIND:
 - Searches ticker profile catalog by query terms.
 - Returns matching symbols with descriptive labels.
+
+BEAST:
+- Fetches current MrBeast subscriber count from YouTube Data API.
+- Returns formatted count with comma separators.
 
 FEEDBACK:
 - FEEDBACK <text> persists feedback and queues portal forwarding.

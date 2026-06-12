@@ -10,6 +10,7 @@ This repository rebuilds the full market SMS assistant product with:
 
 Main SMS command:
 - MENU (returns assistant description and available safe keywords).
+- Includes BEAST for MrBeast subscriber count checks.
 
 ## 1) Folder Layout
 
@@ -58,6 +59,13 @@ Minimum required to send SMS:
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`
+
+Permanent env allowlist:
+- `MARKET_UPDATES_ALLOWED_NUMBERS=+18483291230,+18458981872,+19145870597`
+- Numbers in this env list are always allowed and auto-synced into the allowlist table on startup.
+
+Required for BEAST keyword:
+- `YOUTUBE_API_KEY`
 
 ## 5) Admin API Auth
 

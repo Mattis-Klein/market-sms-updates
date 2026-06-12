@@ -16,13 +16,25 @@ def normalize_phone_number(value: str) -> str:
     return f"+{digits}" if digits else value.strip()
 
 
-def seed_allowlist(db: Database, csv_numbers: str) -> None:
+def parse_allowed_numbers(csv_numbers: str) -> set[str]:
+    allowed: set[str] = set()
     if not csv_numbers.strip():
-        return
+        return allowed
     for raw in csv_numbers.split(","):
         phone = normalize_phone_number(raw.strip())
         if phone:
-            upsert_allowlist_entry(db, phone, "env-seed", True)
+            allowed.add(phone)
+    return allowed
+
+
+def is_permanent_allowlisted(csv_numbers: str, phone_number: str) -> bool:
+    normalized = normalize_phone_number(phone_number)
+    return normalized in parse_allowed_numbers(csv_numbers)
+
+
+def seed_allowlist(db: Database, csv_numbers: str) -> None:
+    for phone in parse_allowed_numbers(csv_numbers):
+        upsert_allowlist_entry(db, phone, "env-seed", True)
 
 
 def upsert_allowlist_entry(db: Database, phone_number: str, label: str = "", enabled: bool = True) -> None:

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 
 from .allowlist import (
     create_invite_request,
     is_allowlisted,
+    is_permanent_allowlisted,
     list_invite_requests,
     normalize_phone_number,
     set_invite_request_status,
@@ -17,11 +19,13 @@ from .keywords import lookup_tickers, normalize_text, parse_check_symbols, parse
 from .market_data import get_historical_close, get_latest_quote
 from .notifications import create_notification, list_notifications, summarize_notification, update_notification_flags
 from .sms_sender import send_sms
+from .youtube_service import MRBEAST_CHANNEL_ID, YouTubeServiceError, format_subscriber_count, get_channel_subscriber_count
 
 
 MENU_TEXT = (
     "Market SMS Assistant helps you check market/date info, look up tickers, set text reminders, and send feedback. "
     "Keywords: CHECK - see available checks; DATECHECK - check market/date info; TICKER - look up ticker info; "
+    "BEAST - check MrBeast subscribers; "
     "REMIND - create a reminder; LIST - see reminders; CANCELREMINDER - cancel a reminder; "
     "FEEDBACK - send feedback or request access. Reply with a keyword to continue."
 )
@@ -42,7 +46,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         if approver_reply:
             return _twiml_message(approver_reply)
 
-    if not is_allowlisted(db, sender):
+    if not (is_allowlisted(db, sender) or is_permanent_allowlisted(config.market_updates_allowed_numbers, sender)):
         blocked = await _handle_unapproved_sender(db, config, sender, incoming, normalized)
         return _twiml_message(blocked)
 
@@ -92,6 +96,18 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
             return _twiml_message("No ticker matches found.")
         preview = [f"{item['symbol']} - {item['name']}" for item in results[:8]]
         return _twiml_message("Matches: " + " | ".join(preview))
+
+    if normalized == "BEAST":
+        api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
+        if not api_key:
+            return _twiml_message("BEAST check is not set up yet. Missing YouTube API key.")
+        try:
+            count = await get_channel_subscriber_count(MRBEAST_CHANNEL_ID, api_key)
+        except YouTubeServiceError:
+            return _twiml_message("I couldn't check MrBeast subscribers right now. Try again soon.")
+        return _twiml_message(
+            f"MrBeast currently has about {format_subscriber_count(count)} YouTube subscribers."
+        )
 
     if normalized.startswith("FEEDBACK"):
         text = incoming[8:].strip() if len(incoming) > 8 else ""

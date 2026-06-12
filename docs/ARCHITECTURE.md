@@ -10,7 +10,8 @@ Core module: backend/market_updates
 - keyword_handlers.py: inbound SMS orchestration and session state machine.
 - keywords.py: command parsing and ticker catalog lookup.
 - market_data.py: Yahoo chart fetch paths (intraday-first + fallback).
-- allowlist.py: number normalization, allowlist state, invite lifecycle.
+- youtube_service.py: YouTube Data API subscriber count lookup for BEAST command.
+- allowlist.py: number normalization, allowlist state, invite lifecycle, permanent env allowlist parsing.
 - notifications.py: persistence and list/flags logic.
 - notification_runner.py: due evaluation and outbound SMS send.
 - feedback_store.py: feedback persistence and portal forwarding.
@@ -20,6 +21,12 @@ Core module: backend/market_updates
 
 Storage:
 - SQLite at MARKET_UPDATES_DB_PATH.
+
+Permanent env allowlist:
+- MARKET_UPDATES_ALLOWED_NUMBERS is parsed as a comma-separated number list.
+- Values are normalized to E.164 format.
+- Numbers are auto-synced into market_sms_allowlist on startup.
+- Inbound access checks always allow numbers from this env list even if the DB is empty.
 
 ## Frontend Admin
 
