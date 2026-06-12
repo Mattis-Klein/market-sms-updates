@@ -7,7 +7,7 @@ from market_updates.allowlist import upsert_allowlist_entry
 from market_updates.config import MarketConfig
 from market_updates.db import Database
 from market_updates.keyword_handlers import handle_inbound_sms
-from market_updates.youtube_service import MRBEAST_CHANNEL_ID, YouTubeServiceError, format_subscriber_count
+from market_updates.youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_subscriber_count
 
 
 class BeastKeywordTests(unittest.IsolatedAsyncioTestCase):
@@ -33,32 +33,24 @@ class BeastKeywordTests(unittest.IsolatedAsyncioTestCase):
         self.tmp.cleanup()
 
     async def test_beast_keyword_routes_and_replies_with_commas(self):
-        with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test-key"}, clear=False):
-            with patch(
-                "market_updates.keyword_handlers.get_channel_subscriber_count",
-                new=AsyncMock(return_value=123456789),
-            ) as mock_get:
-                twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "BEAST")
+        with patch(
+            "market_updates.keyword_handlers.get_channel_subscriber_count",
+            new=AsyncMock(return_value=123456789),
+        ) as mock_get:
+            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "BEAST")
 
-        self.assertIn("MrBeast currently has about 123,456,789 YouTube subscribers.", twiml)
-        mock_get.assert_awaited_once_with(MRBEAST_CHANNEL_ID, "test-key")
+        self.assertIn("MrBeast currently has 123,456,789 YouTube subscribers.", twiml)
+        mock_get.assert_awaited_once_with(MRBEAST_CHANNEL_ID)
 
     def test_subscriber_count_formats_with_commas(self):
         self.assertEqual(format_subscriber_count(123456789), "123,456,789")
 
-    async def test_missing_api_key_returns_setup_message(self):
-        with patch.dict(os.environ, {"YOUTUBE_API_KEY": ""}, clear=False):
-            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "BEAST")
-
-        self.assertIn("BEAST check is not set up yet. Missing YouTube API key.", twiml)
-
     async def test_api_failure_returns_friendly_error(self):
-        with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test-key"}, clear=False):
-            with patch(
-                "market_updates.keyword_handlers.get_channel_subscriber_count",
-                new=AsyncMock(side_effect=YouTubeServiceError("boom")),
-            ):
-                twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "BEAST")
+        with patch(
+            "market_updates.keyword_handlers.get_channel_subscriber_count",
+            new=AsyncMock(side_effect=LivecountsServiceError("boom")),
+        ):
+            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "BEAST")
 
         self.assertIn("I couldn't check MrBeast subscribers right now. Try again soon.", twiml)
 

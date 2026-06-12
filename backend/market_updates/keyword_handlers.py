@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 
 from .allowlist import (
@@ -19,7 +18,7 @@ from .keywords import lookup_tickers, normalize_text, parse_check_symbols, parse
 from .market_data import get_historical_close, get_latest_quote
 from .notifications import create_notification, list_notifications, summarize_notification, update_notification_flags
 from .sms_sender import send_sms
-from .youtube_service import MRBEAST_CHANNEL_ID, YouTubeServiceError, format_subscriber_count, get_channel_subscriber_count
+from .youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_subscriber_count, get_channel_subscriber_count
 
 
 MENU_TEXT = (
@@ -98,15 +97,12 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         return _twiml_message("Matches: " + " | ".join(preview))
 
     if normalized == "BEAST":
-        api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
-        if not api_key:
-            return _twiml_message("BEAST check is not set up yet. Missing YouTube API key.")
         try:
-            count = await get_channel_subscriber_count(MRBEAST_CHANNEL_ID, api_key)
-        except YouTubeServiceError:
+            count = await get_channel_subscriber_count(MRBEAST_CHANNEL_ID)
+        except LivecountsServiceError:
             return _twiml_message("I couldn't check MrBeast subscribers right now. Try again soon.")
         return _twiml_message(
-            f"MrBeast currently has about {format_subscriber_count(count)} YouTube subscribers."
+            f"MrBeast currently has {format_subscriber_count(count)} YouTube subscribers."
         )
 
     if normalized.startswith("FEEDBACK"):
