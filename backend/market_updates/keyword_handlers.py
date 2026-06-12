@@ -24,15 +24,33 @@ from .youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_
 MENU_TEXT = (
     "Market SMS Assistant\n"
     "Reply with one option:\n"
-    "[ ] CHECK <ticker1 ticker2 ...>\n"
-    "[ ] DATECHECK YYYY-MM-DD <ticker1 ticker2 ...>\n"
-    "[ ] TICKER <company or keyword>\n"
-    "[ ] BEAST\n"
-    "[ ] REMIND\n"
-    "[ ] LIST\n"
-    "[ ] CANCELREMINDER <index>\n"
-    "[ ] FEEDBACK <message>"
+    "1. CHECK <ticker1 ticker2 ...>\n"
+    "2. DATECHECK YYYY-MM-DD <ticker1 ticker2 ...>\n"
+    "3. TICKER <company or keyword>\n"
+    "4. BEAST\n"
+    "5. REMIND\n"
+    "6. LIST\n"
+    "7. CANCELREMINDER <index>\n"
+    "8. FEEDBACK <message>"
 )
+
+MAIN_MENU_NUMBER_MAP = {
+    "1": "CHECK",
+    "2": "DATECHECK",
+    "3": "TICKER",
+    "4": "BEAST",
+    "5": "REMIND",
+    "6": "LIST",
+    "7": "CANCELREMINDER",
+    "8": "FEEDBACK",
+}
+
+REMINDER_MENU_NUMBER_MAP = {
+    "1": "PRICE",
+    "2": "ONCE",
+    "3": "DAILY",
+    "4": "INTERVAL",
+}
 
 
 def _twiml_message(body: str) -> str:
@@ -44,6 +62,8 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     sender = normalize_phone_number(from_number)
     incoming = body.strip()
     normalized = normalize_text(incoming)
+    if normalized in MAIN_MENU_NUMBER_MAP:
+        normalized = MAIN_MENU_NUMBER_MAP[normalized]
 
     if sender == normalize_phone_number(config.market_access_approver_number):
         approver_reply = await _handle_approver_message(db, config, normalized)
@@ -68,7 +88,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     if normalized.startswith("CHECK"):
         symbols = parse_check_symbols(normalized)
         if not symbols:
-            return _twiml_message("Usage:\n[ ] CHECK BTC-USD AAPL TSLA\n[ ] CHECK BRK.B ^GSPC")
+            return _twiml_message("Usage:\n1. CHECK BTC-USD AAPL TSLA\n2. CHECK BRK.B ^GSPC")
         lines = []
         for symbol in symbols:
             result = await get_latest_quote(symbol)
@@ -83,7 +103,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     if normalized.startswith("DATECHECK"):
         parsed = parse_datecheck(normalized)
         if not parsed:
-            return _twiml_message("Usage:\n[ ] DATECHECK YYYY-MM-DD AAPL TSLA\n[ ] DATECHECK 2026-01-15 BRK.B ^GSPC")
+            return _twiml_message("Usage:\n1. DATECHECK YYYY-MM-DD AAPL TSLA\n2. DATECHECK 2026-01-15 BRK.B ^GSPC")
         lines = []
         for symbol in parsed["symbols"]:
             result = await get_historical_close(symbol, parsed["date"])
@@ -126,10 +146,10 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         db.upsert_session(sender, "await_remind_type", {})
         return _twiml_message(
             "Reminder type. Reply with one option:\n"
-            "[ ] PRICE\n"
-            "[ ] ONCE\n"
-            "[ ] DAILY\n"
-            "[ ] INTERVAL"
+            "1. PRICE\n"
+            "2. ONCE\n"
+            "3. DAILY\n"
+            "4. INTERVAL"
         )
 
     if normalized in {"LIST", "NOTIFICATIONS", "ALERTS"}:
@@ -228,8 +248,9 @@ def _apply_notification_action(db: Database, phone_number: str, action: str, ind
 
 async def _continue_session(db: Database, phone_number: str, normalized: str, state: str, draft: dict) -> str:
     if state == "await_remind_type":
+        normalized = REMINDER_MENU_NUMBER_MAP.get(normalized, normalized)
         if normalized not in {"PRICE", "ONCE", "DAILY", "INTERVAL"}:
-            return "Reply with one option:\n[ ] PRICE\n[ ] ONCE\n[ ] DAILY\n[ ] INTERVAL"
+            return "Reply with one option:\n1. PRICE\n2. ONCE\n3. DAILY\n4. INTERVAL"
         draft["notification_type"] = {
             "PRICE": "price_alert",
             "ONCE": "one_time_reminder",
