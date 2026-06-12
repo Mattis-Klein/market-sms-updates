@@ -95,16 +95,15 @@ Important note:
 - This improves practical accuracy and freshness for SMS usage.
 - It is not an exchange-licensed, guaranteed real-time market data feed.
 
-### 3.3.1 YouTube Subscriber Lookup
+### 3.3.1 LiveCounts Subscriber Lookup
 
 File: youtube_service.py
 Responsibilities:
-- Fetch MrBeast channel statistics from YouTube Data API v3.
-- Parse statistics.subscriberCount.
+- Fetch MrBeast channel statistics from livecounts.io.
+- Parse real-time subscriber count from HTML page.
 - Format subscriber count with comma separators for SMS output.
 
-Required env var:
-- YOUTUBE_API_KEY
+No env vars required (uses public livecounts.io endpoint).
 
 ### 3.4 Notification Persistence and Summaries
 
@@ -235,7 +234,7 @@ TICKER / LOOKUP / FIND:
 - Returns matching symbols with descriptive labels.
 
 BEAST:
-- Fetches current MrBeast subscriber count from YouTube Data API.
+- Fetches current MrBeast subscriber count from livecounts.io (real-time).
 - Returns formatted count with comma separators.
 
 FEEDBACK:

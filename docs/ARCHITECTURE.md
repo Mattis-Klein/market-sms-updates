@@ -10,7 +10,7 @@ Core module: backend/market_updates
 - keyword_handlers.py: inbound SMS orchestration and session state machine.
 - keywords.py: command parsing and ticker catalog lookup.
 - market_data.py: Yahoo chart fetch paths (intraday-first + fallback).
-- youtube_service.py: YouTube Data API subscriber count lookup for BEAST command.
+- youtube_service.py: livecounts.io web scraping for BEAST command (real-time MrBeast subscriber count).
 - allowlist.py: number normalization, allowlist state, invite lifecycle, permanent env allowlist parsing.
 - notifications.py: persistence and list/flags logic.
 - notification_runner.py: due evaluation and outbound SMS send.
