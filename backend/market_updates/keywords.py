@@ -15,11 +15,17 @@ def normalize_text(message: str) -> str:
     return " ".join(message.strip().upper().split())
 
 
+def _is_valid_symbol_token(token: str) -> bool:
+    # Yahoo-style symbols commonly include characters like ., -, ^, and =.
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-^=")
+    return bool(token) and all(ch in allowed for ch in token)
+
+
 def parse_check_symbols(message: str) -> list[str]:
     parts = normalize_text(message).split()
     if not parts or parts[0] != "CHECK":
         return []
-    return [p for p in parts[1:] if p.replace("-", "").isalnum()]
+    return [p for p in parts[1:] if _is_valid_symbol_token(p)]
 
 
 def parse_datecheck(message: str):
@@ -30,7 +36,7 @@ def parse_datecheck(message: str):
         datetime.strptime(parts[1], "%Y-%m-%d")
     except ValueError:
         return None
-    symbols = [p for p in parts[2:] if p.replace("-", "").isalnum()]
+    symbols = [p for p in parts[2:] if _is_valid_symbol_token(p)]
     if not symbols:
         return None
     return {"date": parts[1], "symbols": symbols}

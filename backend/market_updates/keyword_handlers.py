@@ -22,11 +22,16 @@ from .youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_
 
 
 MENU_TEXT = (
-    "Market SMS Assistant helps you check market/date info, look up tickers, set text reminders, and send feedback. "
-    "Keywords: CHECK - see available checks; DATECHECK - check market/date info; TICKER - look up ticker info; "
-    "BEAST - check MrBeast subscribers; "
-    "REMIND - create a reminder; LIST - see reminders; CANCELREMINDER - cancel a reminder; "
-    "FEEDBACK - send feedback or request access. Reply with a keyword to continue."
+    "Market SMS Assistant\n"
+    "Reply with one option:\n"
+    "[ ] CHECK <ticker1 ticker2 ...>\n"
+    "[ ] DATECHECK YYYY-MM-DD <ticker1 ticker2 ...>\n"
+    "[ ] TICKER <company or keyword>\n"
+    "[ ] BEAST\n"
+    "[ ] REMIND\n"
+    "[ ] LIST\n"
+    "[ ] CANCELREMINDER <index>\n"
+    "[ ] FEEDBACK <message>"
 )
 
 
@@ -63,7 +68,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     if normalized.startswith("CHECK"):
         symbols = parse_check_symbols(normalized)
         if not symbols:
-            return _twiml_message("Usage: CHECK BTC-USD AAPL TSLA")
+            return _twiml_message("Usage:\n[ ] CHECK BTC-USD AAPL TSLA\n[ ] CHECK BRK.B ^GSPC")
         lines = []
         for symbol in symbols:
             result = await get_latest_quote(symbol)
@@ -73,12 +78,12 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
                 lines.append(
                     f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%)"
                 )
-        return _twiml_message(" | ".join(lines))
+        return _twiml_message("\n".join(lines))
 
     if normalized.startswith("DATECHECK"):
         parsed = parse_datecheck(normalized)
         if not parsed:
-            return _twiml_message("Usage: DATECHECK YYYY-MM-DD AAPL TSLA")
+            return _twiml_message("Usage:\n[ ] DATECHECK YYYY-MM-DD AAPL TSLA\n[ ] DATECHECK 2026-01-15 BRK.B ^GSPC")
         lines = []
         for symbol in parsed["symbols"]:
             result = await get_historical_close(symbol, parsed["date"])
@@ -86,7 +91,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
                 lines.append(f"{symbol}: unavailable")
             else:
                 lines.append(f"{symbol} {result['actual_date']}: ${result['close']:.2f}")
-        return _twiml_message(" | ".join(lines))
+        return _twiml_message("\n".join(lines))
 
     if normalized.startswith(("TICKER", "LOOKUP", "FIND")):
         query = incoming.split(" ", 1)[1] if " " in incoming else ""
@@ -94,7 +99,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         if not results:
             return _twiml_message("No ticker matches found.")
         preview = [f"{item['symbol']} - {item['name']}" for item in results[:8]]
-        return _twiml_message("Matches: " + " | ".join(preview))
+        return _twiml_message("Matches:\n" + "\n".join(preview))
 
     if normalized == "BEAST":
         try:
@@ -119,7 +124,13 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
 
     if normalized == "REMIND":
         db.upsert_session(sender, "await_remind_type", {})
-        return _twiml_message("Reminder type? Reply PRICE, ONCE, DAILY, INTERVAL")
+        return _twiml_message(
+            "Reminder type. Reply with one option:\n"
+            "[ ] PRICE\n"
+            "[ ] ONCE\n"
+            "[ ] DAILY\n"
+            "[ ] INTERVAL"
+        )
 
     if normalized in {"LIST", "NOTIFICATIONS", "ALERTS"}:
         return _twiml_message(_render_notifications(db, sender))
@@ -157,7 +168,7 @@ async def _handle_approver_message(db: Database, config: MarketConfig, normalize
         if not pending:
             return "No pending requests."
         lines = [f"#{row['id']} {row['phone_number']}" for row in pending[:10]]
-        return "Pending: " + " | ".join(lines)
+        return "Pending:\n" + "\n".join(lines)
 
     if normalized.startswith("YES "):
         tail = normalized.split(" ", 1)[1]
@@ -195,7 +206,7 @@ def _render_notifications(db: Database, phone_number: str) -> str:
     if not items:
         return "No notifications."
     lines = [f"{idx}. {summarize_notification(item)}" for idx, item in enumerate(items, start=1)]
-    return "Notifications: " + " | ".join(lines[:15])
+    return "Notifications:\n" + "\n".join(lines[:15])
 
 
 def _apply_notification_action(db: Database, phone_number: str, action: str, index: int) -> str:
@@ -218,7 +229,7 @@ def _apply_notification_action(db: Database, phone_number: str, action: str, ind
 async def _continue_session(db: Database, phone_number: str, normalized: str, state: str, draft: dict) -> str:
     if state == "await_remind_type":
         if normalized not in {"PRICE", "ONCE", "DAILY", "INTERVAL"}:
-            return "Reply PRICE, ONCE, DAILY, or INTERVAL"
+            return "Reply with one option:\n[ ] PRICE\n[ ] ONCE\n[ ] DAILY\n[ ] INTERVAL"
         draft["notification_type"] = {
             "PRICE": "price_alert",
             "ONCE": "one_time_reminder",
