@@ -38,6 +38,15 @@ header h1 {
     backdrop-filter: blur(4px);
 }
 
+.beast-card p {
+    margin-top: 0;
+}
+
+.embed-shell {
+    overflow-x: auto;
+    padding-top: 8px;
+}
+
 .row {
     display: grid;
     grid-template-columns: 1fr 1fr auto;

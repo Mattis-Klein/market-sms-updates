@@ -8,6 +8,7 @@ const adminTokenEl = document.getElementById("adminToken");
 const allowOut = document.getElementById("allowOut");
 const inviteOut = document.getElementById("inviteOut");
 const feedbackOut = document.getElementById("feedbackOut");
+const beastOut = document.getElementById("beastOut");
 
 apiBaseEl.value = state.apiBase;
 adminTokenEl.value = state.token;
@@ -59,4 +60,9 @@ document.getElementById("refreshInvites").onclick = async () => {
 document.getElementById("refreshFeedback").onclick = async () => {
     const result = await callApi("/api/market-updates/admin/feedback?limit=100");
     feedbackOut.textContent = JSON.stringify(result, null, 2);
+};
+
+document.getElementById("refreshBeast").onclick = async () => {
+    const result = await callApi("/api/market-updates/admin/beast-count");
+    beastOut.textContent = JSON.stringify(result, null, 2);
 };

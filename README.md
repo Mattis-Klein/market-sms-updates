@@ -64,8 +64,10 @@ Permanent env allowlist:
 - `MARKET_UPDATES_ALLOWED_NUMBERS=+18483291230,+18458981872,+19145870597`
 - Numbers in this env list are always allowed and auto-synced into the allowlist table on startup.
 
-Required for BEAST keyword:
-- `YOUTUBE_API_KEY`
+BEAST keyword:
+- Uses livecounts.io stats API for exact followerCount when available.
+- Falls back to livecounts.io page parsing if stats API access is blocked.
+- No API key is required.
 
 ## 5) Admin API Auth
 

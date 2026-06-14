@@ -14,6 +14,7 @@ from .allowlist import (
 from .config import load_config
 from .db import Database
 from .feedback_store import list_feedback
+from .youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_subscriber_count, get_channel_subscriber_count
 
 
 router = APIRouter(prefix="/api/market-updates/admin", tags=["market-admin"])
@@ -84,3 +85,16 @@ def deny_request(request_id: int):
 @router.get("/feedback", dependencies=[Depends(require_admin)])
 def get_feedback(limit: int = Query(default=100)):
     return {"items": list_feedback(db, limit)}
+
+
+@router.get("/beast-count", dependencies=[Depends(require_admin)])
+async def get_beast_count():
+    try:
+        count = await get_channel_subscriber_count(MRBEAST_CHANNEL_ID)
+    except LivecountsServiceError as exc:
+        raise HTTPException(status_code=502, detail="Could not fetch MrBeast subscriber count") from exc
+    return {
+        "channel_id": MRBEAST_CHANNEL_ID,
+        "subscriber_count": count,
+        "subscriber_count_formatted": format_subscriber_count(count),
+    }

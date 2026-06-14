@@ -10,7 +10,7 @@ Core module: backend/market_updates
 - keyword_handlers.py: inbound SMS orchestration and session state machine.
 - keywords.py: command parsing and ticker catalog lookup.
 - market_data.py: Yahoo chart fetch paths (intraday-first + fallback).
-- youtube_service.py: livecounts.io web scraping for BEAST command (real-time MrBeast subscriber count).
+- youtube_service.py: livecounts.io stats API (exact followerCount) with HTML fallback for BEAST command.
 - allowlist.py: number normalization, allowlist state, invite lifecycle, permanent env allowlist parsing.
 - notifications.py: persistence and list/flags logic.
 - notification_runner.py: due evaluation and outbound SMS send.
@@ -36,6 +36,8 @@ Static admin page for:
 - allowlist create/list
 - pending invite review
 - feedback read
+- BEAST debug API call returning current parsed subscriber count
+- MrBeast Livecounts embed for the BEAST keyword source
 
 Uses x-admin-token header to call backend admin routes.
 
