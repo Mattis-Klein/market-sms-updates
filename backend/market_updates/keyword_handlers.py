@@ -48,6 +48,7 @@ MAIN_MENU_NUMBER_MAP = {
 
 GLOBAL_COMMANDS = {
     "MENU",
+    "REMIND",
     "CHECK",
     "DATECHECK",
     "TICKER",
@@ -87,6 +88,16 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     if normalized in COMMAND_ALIASES:
         normalized = COMMAND_ALIASES[normalized]
     direct_symbol = parse_direct_symbol(normalized)
+    if normalized == "STOP" or normalized in GLOBAL_COMMANDS or normalized.startswith((
+        "CHECK",
+        "DATECHECK",
+        "TICKER",
+        "LOOKUP",
+        "FIND",
+        "FEEDBACK",
+        "CANCELREMINDER",
+    )):
+        direct_symbol = None
 
     if sender == normalize_phone_number(config.market_access_approver_number):
         approver_reply = await _handle_approver_message(db, config, normalized)

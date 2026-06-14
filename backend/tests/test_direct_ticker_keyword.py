@@ -79,6 +79,24 @@ class DirectTickerKeywordTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("TSLA: $201.50 (-2.30, -1.13%)", twiml)
         self.assertIsNone(self.db.get_session(self.user_phone))
 
+    async def test_ticker_with_dollar_prefix_and_punctuation(self):
+        with patch(
+            "market_updates.keyword_handlers.get_latest_quote",
+            new=AsyncMock(
+                return_value={
+                    "symbol": "AAPL",
+                    "price": 214.32,
+                    "change": 1.11,
+                    "change_pct": 0.52,
+                    "available": True,
+                }
+            ),
+        ) as mock_get:
+            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "$aapl?")
+
+        self.assertIn("AAPL: $214.32 (+1.11, +0.52%)", twiml)
+        mock_get.assert_awaited_once_with("AAPL")
+
 
 if __name__ == "__main__":
     unittest.main()
