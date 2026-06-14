@@ -54,6 +54,15 @@ class BeastKeywordTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("I couldn't check MrBeast subscribers right now. Try again soon.", twiml)
 
+    async def test_unexpected_error_returns_friendly_error(self):
+        with patch(
+            "market_updates.keyword_handlers.get_channel_subscriber_count",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "BEAST")
+
+        self.assertIn("I couldn't check MrBeast subscribers right now. Try again soon.", twiml)
+
 
 if __name__ == "__main__":
     unittest.main()

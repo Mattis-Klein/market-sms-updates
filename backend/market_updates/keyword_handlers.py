@@ -126,6 +126,8 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
             count = await get_channel_subscriber_count(MRBEAST_CHANNEL_ID)
         except LivecountsServiceError:
             return _twiml_message("I couldn't check MrBeast subscribers right now. Try again soon.")
+        except Exception:
+            return _twiml_message("I couldn't check MrBeast subscribers right now. Try again soon.")
         return _twiml_message(
             f"MrBeast currently has {format_subscriber_count(count)} YouTube subscribers."
         )
