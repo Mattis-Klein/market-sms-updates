@@ -97,6 +97,33 @@ class DirectTickerKeywordTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("AAPL: $214.32 (+1.11, +0.52%)", twiml)
         mock_get.assert_awaited_once_with("AAPL")
 
+    async def test_gspc_alias_maps_to_caret_symbol(self):
+        with patch(
+            "market_updates.keyword_handlers.get_latest_quote",
+            new=AsyncMock(
+                return_value={
+                    "symbol": "^GSPC",
+                    "price": 5500.0,
+                    "change": 10.0,
+                    "change_pct": 0.18,
+                    "available": True,
+                }
+            ),
+        ) as mock_get:
+            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "gspc")
+
+        self.assertIn("^GSPC: $5500.00 (+10.00, +0.18%)", twiml)
+        mock_get.assert_awaited_once_with("^GSPC")
+
+    async def test_direct_ticker_runtime_error_returns_friendly_message(self):
+        with patch(
+            "market_updates.keyword_handlers.get_latest_quote",
+            new=AsyncMock(side_effect=RuntimeError("network down")),
+        ):
+            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "gspc")
+
+        self.assertIn("I couldn't check that ticker right now. Try again soon.", twiml)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,6 +42,13 @@ def parse_direct_symbol(message: str) -> str | None:
         return None
 
     token = _normalize_direct_symbol_token(parts[0])
+    direct_aliases = {
+        "GSPC": "^GSPC",
+        "SPX": "^GSPC",
+        "S&P": "^GSPC",
+        "SP500": "^GSPC",
+    }
+    token = direct_aliases.get(token, token)
     if not _is_valid_symbol_token(token):
         return None
     return token

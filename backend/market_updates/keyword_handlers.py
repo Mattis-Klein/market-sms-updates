@@ -196,7 +196,10 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         return _twiml_message("Matches:\n" + "\n".join(preview))
 
     if direct_symbol:
-        result = await get_latest_quote(direct_symbol)
+        try:
+            result = await get_latest_quote(direct_symbol)
+        except Exception:
+            return _twiml_message("I couldn't check that ticker right now. Try again soon.")
         if not result["available"]:
             return _twiml_message(f"{direct_symbol}: unavailable")
         return _twiml_message(
