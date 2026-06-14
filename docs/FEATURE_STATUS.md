@@ -7,6 +7,7 @@ Implemented in this rebuild:
 - Commands: MENU, CHECK, DATECHECK, TICKER/LOOKUP/FIND, BEAST, FEEDBACK, REMIND, LIST, CANCELREMINDER, STOP.
 - BEAST uses livecounts.io stats API for exact followerCount with HTML fallback.
 - BEAST always returns a friendly TwiML fallback if Livecounts fails unexpectedly.
+- BEAST bypasses active reminder sessions so it responds immediately as a global command.
 - Permanent env allowlist support from MARKET_UPDATES_ALLOWED_NUMBERS (startup sync + runtime bypass).
 - Invite request flow for non-allowlisted users.
 - Approver commands: PENDING, YES <id>, NO <id>.

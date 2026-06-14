@@ -45,6 +45,21 @@ MAIN_MENU_NUMBER_MAP = {
     "8": "FEEDBACK",
 }
 
+GLOBAL_COMMANDS = {
+    "MENU",
+    "CHECK",
+    "DATECHECK",
+    "TICKER",
+    "LOOKUP",
+    "FIND",
+    "BEAST",
+    "FEEDBACK",
+    "LIST",
+    "NOTIFICATIONS",
+    "ALERTS",
+    "CANCELREMINDER",
+}
+
 REMINDER_MENU_NUMBER_MAP = {
     "1": "PRICE",
     "2": "ONCE",
@@ -79,7 +94,11 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         db.clear_session(sender)
         return _twiml_message("Canceled. Send MENU for commands.")
 
-    if session:
+    if normalized in GLOBAL_COMMANDS or normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "FEEDBACK", "CANCELREMINDER")):
+        if session:
+            db.clear_session(sender)
+
+    if session and normalized not in GLOBAL_COMMANDS and not normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "FEEDBACK", "CANCELREMINDER")):
         return _twiml_message(await _continue_session(db, sender, normalized, session["state"], session["draft"]))
 
     if normalized == "MENU":
