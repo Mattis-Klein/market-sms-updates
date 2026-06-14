@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 
 TICKER_CATALOG = [
     {"symbol": "AAPL", "name": "Apple Inc", "keywords": ["apple", "iphone", "ios"]},
@@ -8,6 +9,11 @@ TICKER_CATALOG = [
     {"symbol": "MSFT", "name": "Microsoft Corp", "keywords": ["microsoft", "azure", "office"]},
     {"symbol": "NVDA", "name": "NVIDIA Corp", "keywords": ["nvidia", "gpu", "ai"]},
     {"symbol": "BTC-USD", "name": "Bitcoin USD", "keywords": ["bitcoin", "btc", "crypto"]},
+    {
+        "symbol": "^GSPC",
+        "name": "S&P 500 Index",
+        "keywords": ["s&p", "s&p 500", "spx", "sp500", "s and p", "standard and poor", "index"],
+    },
 ]
 
 
@@ -75,7 +81,11 @@ def parse_list_action(message: str):
 
 
 def lookup_tickers(query: str):
-    query_tokens = [t.lower() for t in query.strip().split() if t.strip()]
+    normalized = query.strip().lower()
+    normalized = normalized.replace("s & p", "s&p")
+    normalized = normalized.replace("s and p", "s&p")
+    normalized = " ".join(normalized.split())
+    query_tokens = [t for t in re.split(r"\s+", normalized) if t]
     if not query_tokens:
         return []
     results = []
@@ -84,3 +94,7 @@ def lookup_tickers(query: str):
         if all(token in haystack for token in query_tokens):
             results.append(ticker)
     return results
+
+
+def list_supported_tickers() -> list[dict]:
+    return list(TICKER_CATALOG)

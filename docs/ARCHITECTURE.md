@@ -9,6 +9,7 @@ Core module: backend/market_updates
 
 - keyword_handlers.py: inbound SMS orchestration and session state machine.
 - keyword_handlers.py: includes direct ticker shortcut path for single-symbol messages.
+- keyword_handlers.py: includes `TICKERS` and `SYMBOL <query>` keyword flows for symbol discovery.
 - keywords.py: command parsing and ticker catalog lookup.
 - market_data.py: Yahoo chart fetch paths (intraday-first + fallback).
 - youtube_service.py: livecounts.io stats API (exact followerCount) with HTML fallback for BEAST command.
