@@ -41,7 +41,8 @@ class PermanentAllowlistTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_inbound_allows_env_number_without_db_row(self):
         twiml = await handle_inbound_sms(self.db, self.config, "+18458981872", "MENU")
-        self.assertIn("Market SMS Assistant helps", twiml)
+        self.assertIn("Market SMS Assistant", twiml)
+        self.assertIn("Reply with a number to get the next step:", twiml)
 
     async def test_inbound_keeps_approval_flow_for_other_numbers(self):
         twiml = await handle_inbound_sms(self.db, self.config, "+15551230000", "MENU")
