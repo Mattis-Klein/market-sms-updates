@@ -5,6 +5,7 @@ Date: 2026-06-09
 Implemented in this rebuild:
 - Twilio webhook endpoint at /api/market-updates/sms.
 - Commands: MENU, CHECK, DATECHECK, TICKER/LOOKUP/FIND, BEAST, FEEDBACK, REMIND, LIST, CANCELREMINDER, STOP.
+- Direct ticker messages (for example `AAPL`, `TSLA`, `BTC-USD`) now return quick quotes without `CHECK`.
 - BEAST also accepts the `@mrbeast` alias.
 - BEAST uses livecounts.io stats API for exact followerCount with HTML fallback.
 - BEAST always returns a friendly TwiML fallback if Livecounts fails unexpectedly.

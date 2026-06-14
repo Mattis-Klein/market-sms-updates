@@ -14,7 +14,7 @@ from .allowlist import (
 from .config import MarketConfig
 from .db import Database
 from .feedback_store import forward_feedback, store_feedback
-from .keywords import lookup_tickers, normalize_text, parse_check_symbols, parse_datecheck, parse_list_action
+from .keywords import lookup_tickers, normalize_text, parse_check_symbols, parse_datecheck, parse_direct_symbol, parse_list_action
 from .market_data import get_historical_close, get_latest_quote
 from .notifications import create_notification, list_notifications, summarize_notification, update_notification_flags
 from .sms_sender import send_sms
@@ -31,7 +31,8 @@ MENU_TEXT = (
     "5. REMIND\n"
     "6. LIST\n"
     "7. CANCELREMINDER <index>\n"
-    "8. FEEDBACK <message>"
+    "8. FEEDBACK <message>\n"
+    "Tip: send a ticker like AAPL directly for a quick quote."
 )
 
 MAIN_MENU_NUMBER_MAP = {
@@ -85,6 +86,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         normalized = MAIN_MENU_NUMBER_MAP[normalized]
     if normalized in COMMAND_ALIASES:
         normalized = COMMAND_ALIASES[normalized]
+    direct_symbol = parse_direct_symbol(normalized)
 
     if sender == normalize_phone_number(config.market_access_approver_number):
         approver_reply = await _handle_approver_message(db, config, normalized)
@@ -100,11 +102,11 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         db.clear_session(sender)
         return _twiml_message("Canceled. Send MENU for commands.")
 
-    if normalized in GLOBAL_COMMANDS or normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "FEEDBACK", "CANCELREMINDER")):
+    if normalized in GLOBAL_COMMANDS or normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "FEEDBACK", "CANCELREMINDER")) or direct_symbol:
         if session:
             db.clear_session(sender)
 
-    if session and normalized not in GLOBAL_COMMANDS and not normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "FEEDBACK", "CANCELREMINDER")):
+    if session and normalized not in GLOBAL_COMMANDS and not normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "FEEDBACK", "CANCELREMINDER")) and not direct_symbol:
         return _twiml_message(await _continue_session(db, sender, normalized, session["state"], session["draft"]))
 
     if normalized == "MENU":
@@ -145,6 +147,14 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
             return _twiml_message("No ticker matches found.")
         preview = [f"{item['symbol']} - {item['name']}" for item in results[:8]]
         return _twiml_message("Matches:\n" + "\n".join(preview))
+
+    if direct_symbol:
+        result = await get_latest_quote(direct_symbol)
+        if not result["available"]:
+            return _twiml_message(f"{direct_symbol}: unavailable")
+        return _twiml_message(
+            f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%)"
+        )
 
     if normalized == "BEAST":
         try:

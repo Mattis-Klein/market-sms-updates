@@ -21,6 +21,48 @@ def _is_valid_symbol_token(token: str) -> bool:
     return bool(token) and all(ch in allowed for ch in token)
 
 
+def parse_direct_symbol(message: str) -> str | None:
+    parts = normalize_text(message).split()
+    if len(parts) != 1:
+        return None
+
+    token = parts[0]
+    reserved = {
+        "MENU",
+        "STOP",
+        "CHECK",
+        "DATECHECK",
+        "TICKER",
+        "LOOKUP",
+        "FIND",
+        "BEAST",
+        "REMIND",
+        "LIST",
+        "NOTIFICATIONS",
+        "ALERTS",
+        "CANCELREMINDER",
+        "FEEDBACK",
+        "REQUEST",
+        "INVITE",
+        "ACCESS",
+        "PENDING",
+        "YES",
+        "NO",
+        "DELETE",
+        "PAUSE",
+        "RESUME",
+        "PRICE",
+        "ONCE",
+        "DAILY",
+        "INTERVAL",
+    }
+    if token in reserved:
+        return None
+    if not _is_valid_symbol_token(token):
+        return None
+    return token
+
+
 def parse_check_symbols(message: str) -> list[str]:
     parts = normalize_text(message).split()
     if not parts or parts[0] != "CHECK":
