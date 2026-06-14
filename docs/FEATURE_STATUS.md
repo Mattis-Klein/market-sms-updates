@@ -7,6 +7,7 @@ Implemented in this rebuild:
 - Commands: MENU, CHECK, DATECHECK, TICKER/LOOKUP/FIND, BEAST, FEEDBACK, REMIND, LIST, CANCELREMINDER, STOP.
 - New keyword: `TICKERS` returns the supported ticker list.
 - New keyword: `SYMBOL <name>` maps text queries (for example `SYMBOL S&P`) to ticker symbols.
+- MENU now supports top-level number replies that return next-step instructions.
 - Direct ticker messages (for example `AAPL`, `TSLA`, `BTC-USD`) now return quick quotes without `CHECK`.
 - Direct ticker parsing accepts common SMS formatting (for example `$AAPL`, `AAPL?`, `(TSLA)`).
 - BEAST also accepts the `@mrbeast` alias.

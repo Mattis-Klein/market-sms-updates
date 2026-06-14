@@ -31,10 +31,10 @@ from .youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_
 
 MENU_TEXT = (
     "Market SMS Assistant\n"
-    "Reply with one option:\n"
-    "1. CHECK <ticker1 ticker2 ...>\n"
-    "2. DATECHECK YYYY-MM-DD <ticker1 ticker2 ...>\n"
-    "3. TICKER <company or keyword>\n"
+    "Reply with a number to get the next step:\n"
+    "1. Check live prices\n"
+    "2. Check historical close\n"
+    "3. Find ticker symbol\n"
     "4. BEAST\n"
     "5. REMIND\n"
     "6. LIST\n"
@@ -45,17 +45,17 @@ MENU_TEXT = (
     "Tip: send a ticker like AAPL directly for a quick quote."
 )
 
-MAIN_MENU_NUMBER_MAP = {
-    "1": "CHECK",
-    "2": "DATECHECK",
-    "3": "TICKER",
-    "4": "BEAST",
-    "5": "REMIND",
-    "6": "LIST",
-    "7": "CANCELREMINDER",
-    "8": "FEEDBACK",
-    "9": "TICKERS",
-    "10": "SYMBOL",
+MENU_NUMBER_HELP = {
+    "1": "Send: CHECK <ticker1 ticker2 ...>. Example: CHECK AAPL TSLA ^GSPC",
+    "2": "Send: DATECHECK YYYY-MM-DD <ticker1 ticker2 ...>. Example: DATECHECK 2026-01-15 AAPL",
+    "3": "Send: SYMBOL <word or phrase> and I'll return matching tickers. Example: SYMBOL S&P",
+    "4": "Send: BEAST",
+    "5": "Send: REMIND to start reminder setup.",
+    "6": "Send: LIST to view your notifications.",
+    "7": "Send: CANCELREMINDER <index>. Example: CANCELREMINDER 1",
+    "8": "Send: FEEDBACK <message>",
+    "9": "Send: TICKERS to list supported symbols.",
+    "10": "Send: SYMBOL <name>. Example: SYMBOL S&P",
 }
 
 GLOBAL_COMMANDS = {
@@ -97,8 +97,6 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     sender = normalize_phone_number(from_number)
     incoming = body.strip()
     normalized = normalize_text(incoming)
-    if normalized in MAIN_MENU_NUMBER_MAP:
-        normalized = MAIN_MENU_NUMBER_MAP[normalized]
     if normalized in COMMAND_ALIASES:
         normalized = COMMAND_ALIASES[normalized]
     direct_symbol = parse_direct_symbol(normalized)
@@ -128,12 +126,18 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         db.clear_session(sender)
         return _twiml_message("Canceled. Send MENU for commands.")
 
+    if session and session["state"] == "await_remind_type" and normalized in REMINDER_MENU_NUMBER_MAP:
+        direct_symbol = None
+
     if normalized in GLOBAL_COMMANDS or normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "SYMBOL", "FEEDBACK", "CANCELREMINDER")) or direct_symbol:
         if session:
             db.clear_session(sender)
 
     if session and normalized not in GLOBAL_COMMANDS and not normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "SYMBOL", "FEEDBACK", "CANCELREMINDER")) and not direct_symbol:
         return _twiml_message(await _continue_session(db, sender, normalized, session["state"], session["draft"]))
+
+    if normalized in MENU_NUMBER_HELP:
+        return _twiml_message(MENU_NUMBER_HELP[normalized])
 
     if normalized == "MENU":
         return _twiml_message(MENU_TEXT)
