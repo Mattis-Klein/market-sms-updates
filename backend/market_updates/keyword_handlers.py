@@ -60,6 +60,10 @@ GLOBAL_COMMANDS = {
     "CANCELREMINDER",
 }
 
+COMMAND_ALIASES = {
+    "@MRBEAST": "BEAST",
+}
+
 REMINDER_MENU_NUMBER_MAP = {
     "1": "PRICE",
     "2": "ONCE",
@@ -79,6 +83,8 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     normalized = normalize_text(incoming)
     if normalized in MAIN_MENU_NUMBER_MAP:
         normalized = MAIN_MENU_NUMBER_MAP[normalized]
+    if normalized in COMMAND_ALIASES:
+        normalized = COMMAND_ALIASES[normalized]
 
     if sender == normalize_phone_number(config.market_access_approver_number):
         approver_reply = await _handle_approver_message(db, config, normalized)

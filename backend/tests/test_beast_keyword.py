@@ -76,6 +76,16 @@ class BeastKeywordTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("MrBeast currently has 123,456,789 YouTube subscribers.", twiml)
         self.assertIsNone(self.db.get_session(self.user_phone))
 
+    async def test_at_mrbeast_alias_routes_to_beast(self):
+        with patch(
+            "market_updates.keyword_handlers.get_channel_subscriber_count",
+            new=AsyncMock(return_value=123456789),
+        ) as mock_get:
+            twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "@mrbeast")
+
+        self.assertIn("MrBeast currently has 123,456,789 YouTube subscribers.", twiml)
+        mock_get.assert_awaited_once_with(MRBEAST_CHANNEL_ID)
+
 
 if __name__ == "__main__":
     unittest.main()
