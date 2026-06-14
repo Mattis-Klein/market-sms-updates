@@ -1,30 +1,42 @@
 # Feature Status
 
-Date: 2026-06-09
+Date: 2026-06-14
 
-Implemented in this rebuild:
-- Twilio webhook endpoint at /api/market-updates/sms.
-- Commands: MENU, CHECK, DATECHECK, TICKER/LOOKUP/FIND, BEAST, FEEDBACK, REMIND, LIST, CANCELREMINDER, STOP.
-- New keyword: `TICKERS` returns the supported ticker list.
-- New keyword: `SYMBOL <name>` maps text queries (for example `SYMBOL S&P`) to ticker symbols.
-- MENU now supports top-level number replies that return next-step instructions.
-- Direct ticker messages (for example `AAPL`, `TSLA`, `BTC-USD`) now return quick quotes without `CHECK`.
-- Direct ticker parsing accepts common SMS formatting (for example `$AAPL`, `AAPL?`, `(TSLA)`).
-- BEAST also accepts the `@mrbeast` alias.
-- BEAST uses livecounts.io stats API for exact followerCount with HTML fallback.
-- BEAST always returns a friendly TwiML fallback if Livecounts fails unexpectedly.
-- BEAST bypasses active reminder sessions so it responds immediately as a global command.
-- Permanent env allowlist support from MARKET_UPDATES_ALLOWED_NUMBERS (startup sync + runtime bypass).
-- Invite request flow for non-allowlisted users.
-- Approver commands: PENDING, YES <id>, NO <id>.
-- Notification creation flow for PRICE/ONCE/DAILY/INTERVAL reminder types.
-- Notification runner batch execution script.
-- Admin API endpoints for allowlist/invite/feedback operations.
-- Admin API endpoint `/api/market-updates/admin/beast-count` for live BEAST debug value.
-- Feedback portal ingest and dashboard.
+## Implemented
 
-Known gaps and recommended next hardening:
+### Inbound SMS and Command System
+- Twilio webhook endpoint at `/api/market-updates/sms`.
+- MENU-driven command discovery with numbered next-step guidance.
+- Core commands: `CHECK`, `DATECHECK`, `TICKER/LOOKUP/FIND`, `BEAST`, `FEEDBACK`, `REMIND`, `LIST`, `CANCELREMINDER`, `STOP`.
+- Discovery commands: `TICKERS`, `SYMBOL <name>`.
+- Direct ticker shortcut for single-symbol messages.
+- Direct ticker parsing supports formatted SMS input (`$AAPL`, `AAPL?`, `(TSLA)`).
+
+### BEAST Utility
+- `BEAST` and `@mrbeast` alias support.
+- livecounts stats API primary source with fallback parser.
+- Friendly fallback response on upstream failures.
+- Session bypass behavior to avoid reminder-flow interception.
+
+### Access Control
+- Permanent env allowlist via `MARKET_UPDATES_ALLOWED_NUMBERS`.
+- startup sync into allowlist table.
+- invite request flow for non-allowlisted senders.
+- approver commands: `PENDING`, `YES <id>`, `NO <id>`.
+
+### Notifications
+- Multi-step reminder creation flow.
+- Types: `PRICE`, `ONCE`, `DAILY`, `INTERVAL`.
+- Runner script for due notification processing.
+
+### Admin and Feedback
+- Admin API endpoints for allowlist, invite requests, feedback.
+- Admin BEAST debug endpoint: `/api/market-updates/admin/beast-count`.
+- Feedback portal ingest + dashboard flow.
+
+## Known Gaps and Hardening Backlog
+
 - Add exchange-licensed market feed if strict real-time guarantees are required.
 - Add stronger auth (SSO/JWT) for admin and feedback portal.
 - Add retry/queueing for outbound and forwarding failures.
-- Add full test suite and CI workflow.
+- Expand CI and quality gates beyond current focused unit coverage.

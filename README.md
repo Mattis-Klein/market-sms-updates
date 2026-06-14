@@ -1,34 +1,23 @@
-# Market SMS Assistant (Rebuild)
+# Market SMS Assistant
 
-This repository rebuilds the full market SMS assistant product with:
-- SMS webhook ingestion and command handling.
-- Allowlist and invite approval workflow.
-- Market quote and historical lookups from Yahoo endpoints.
-- Reminder and alert notifications with runner job.
-- Admin API and admin web UI.
-- Feedback storage and optional feedback portal forwarding.
+Market SMS Assistant is an SMS-first automation service for:
+- live market quotes
+- historical market checks
+- symbol discovery
+- reminder and notification workflows
+- controlled access via allowlist and invite approvals
+- feedback capture and forwarding
 
-Main SMS command:
-- MENU (returns assistant description and available safe keywords).
-- Includes BEAST for MrBeast subscriber count checks.
+The project is built on FastAPI with Twilio inbound/outbound messaging and SQLite persistence.
 
-## 1) Folder Layout
+## Quick Start
 
-- `backend/` FastAPI app and market feature modules.
-- `frontend/market-admin/` static admin page.
-- `feedback_service/` optional feedback portal service.
-- `docs/` living architecture and status docs.
-- `routes/` dated change history documents.
+1. Create and activate a Python environment.
+2. Install backend dependencies.
+3. Set required environment variables.
+4. Run the backend API.
 
-## 2) Webhook URL (Twilio)
-
-Set Twilio incoming webhook to:
-
-`https://yeshivachill.com/api/market-updates/sms`
-
-## 3) Local Run
-
-Backend:
+Backend run:
 
 ```bash
 cd backend
@@ -36,52 +25,67 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8787
 ```
 
-Feedback service:
+Primary webhook path:
 
-```bash
-cd feedback_service
-pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 8790
-```
+`/api/market-updates/sms`
 
-Notification runner:
+Production webhook example:
 
-```bash
-cd backend
-python -m market_updates.notification_runner
-```
+`https://yeshivachill.com/api/market-updates/sms`
 
-## 4) Required Environment
+## Core SMS Experience
 
-Copy `.env.example` values into your deployment environment and set real secrets.
+Top-level entry command:
+- `MENU`
 
-Minimum required to send SMS:
+Command groups:
+- Market data: `CHECK`, `DATECHECK`, direct ticker message
+- Symbol discovery: `SYMBOL <query>`, `TICKERS`, `TICKER/LOOKUP/FIND <query>`
+- Subscriber utility: `BEAST`, `@mrbeast`
+- Reminders: `REMIND`, `LIST`, `CANCELREMINDER <index>`
+- Feedback: `FEEDBACK <message>`
+
+Numbered menu behavior:
+- Replying with top-level numbers after `MENU` returns next-step guidance.
+- Reminder-flow numbers remain active inside reminder setup sessions.
+
+## Repository Layout
+
+- `backend/`: FastAPI API, domain modules, tests.
+- `frontend/market-admin/`: static admin UI.
+- `feedback_service/`: optional feedback portal API/UI.
+- `docs/`: canonical project documentation.
+- `routes/`: dated change logs and implementation notes.
+
+## Environment
+
+Minimum required for SMS send/receive:
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`
 
-Permanent env allowlist:
-- `MARKET_UPDATES_ALLOWED_NUMBERS=+18483291230,+18458981872,+19145870597`
-- Numbers in this env list are always allowed and auto-synced into the allowlist table on startup.
+Access and admin:
+- `MARKET_UPDATES_ALLOWED_NUMBERS`
+- `MARKET_ACCESS_APPROVER_NUMBER`
+- `MARKET_ADMIN_TOKEN`
 
-BEAST keyword:
-- Uses livecounts.io stats API for exact followerCount when available.
-- Falls back to livecounts.io page parsing if stats API access is blocked.
-- No API key is required.
+Optional integrations:
+- `FEEDBACK_PORTAL_INGEST_URL`
+- `FEEDBACK_PORTAL_INGEST_TOKEN`
 
-## 5) Admin API Auth
+## Admin API Auth
 
-Send header:
+All admin routes require:
 
 `x-admin-token: <MARKET_ADMIN_TOKEN>`
 
-## 6) Notes on Credentials
+## Documentation Map
 
-You shared:
-- Account SID: `AC1aed9218d8351feca467989909c45414`
-- Phone Number: `+18777668030`
-
-Still needed from Twilio Console:
-- Auth Token
-
-Use the Auth Token only in environment variables. Do not commit it.
+- `docs/PROJECT_OVERVIEW.md`
+- `docs/ARCHITECTURE.md`
+- `docs/FEATURE_STATUS.md`
+- `docs/COMMAND_REFERENCE.md`
+- `docs/API_REFERENCE.md`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/CODEBASE_ORGANIZATION.md`
+- `docs/TESTING_AND_QUALITY.md`
