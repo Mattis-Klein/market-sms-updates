@@ -13,6 +13,7 @@ Date: 2026-06-14
 - Direct ticker parsing supports formatted SMS input (`$AAPL`, `AAPL?`, `(TSLA)`).
 - Direct index aliases map to Yahoo symbols (for example `GSPC`/`SPX` -> `^GSPC`).
 - Direct ticker branch returns a friendly fallback message on upstream/runtime failures.
+- Quote responses now include explicit `"regularMarketPrice": <value>` in message text.
 
 ### BEAST Utility
 - `BEAST` and `@mrbeast` alias support.

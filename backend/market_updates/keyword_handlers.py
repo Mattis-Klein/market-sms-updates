@@ -152,8 +152,9 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
             if not result["available"]:
                 lines.append(f"{symbol}: unavailable")
             else:
+                regular_market_price = result.get("regularMarketPrice", result["price"])
                 lines.append(
-                    f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%)"
+                    f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%) | \"regularMarketPrice\": {regular_market_price:.2f}"
                 )
         return _twiml_message("\n".join(lines))
 
@@ -202,8 +203,9 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
             return _twiml_message("I couldn't check that ticker right now. Try again soon.")
         if not result["available"]:
             return _twiml_message(f"{direct_symbol}: unavailable")
+        regular_market_price = result.get("regularMarketPrice", result["price"])
         return _twiml_message(
-            f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%)"
+            f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%) | \"regularMarketPrice\": {regular_market_price:.2f}"
         )
 
     if normalized == "BEAST":

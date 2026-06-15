@@ -38,11 +38,14 @@ async def get_latest_quote(symbol: str):
         return {"symbol": symbol, "available": False}
 
     latest = float(valid[-1])
+    regular_market_price_raw = meta.get("regularMarketPrice")
+    regular_market_price = float(regular_market_price_raw) if isinstance(regular_market_price_raw, (int, float)) else latest
     prev = float(meta.get("previousClose") or valid[0])
     change = latest - prev
     change_pct = (change / prev * 100.0) if prev else 0.0
     return {
         "symbol": symbol,
+        "regularMarketPrice": regular_market_price,
         "price": latest,
         "change": change,
         "change_pct": change_pct,
