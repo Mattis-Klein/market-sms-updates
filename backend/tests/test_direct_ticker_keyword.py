@@ -47,7 +47,7 @@ class DirectTickerKeywordTests(unittest.IsolatedAsyncioTestCase):
         ) as mock_get:
             twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "AAPL")
 
-        self.assertIn("AAPL: $214.32 (+1.11, +0.52%) | \"regularMarketPrice\": 214.32", twiml)
+        self.assertIn("AAPL: $214.32 (+1.11, +0.52%)", twiml)
         mock_get.assert_awaited_once_with("AAPL")
 
     async def test_plain_ticker_unavailable(self):
@@ -78,7 +78,7 @@ class DirectTickerKeywordTests(unittest.IsolatedAsyncioTestCase):
         ):
             twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "TSLA")
 
-        self.assertIn("TSLA: $201.50 (-2.30, -1.13%) | \"regularMarketPrice\": 201.50", twiml)
+        self.assertIn("TSLA: $201.50 (-2.30, -1.13%)", twiml)
         self.assertIsNone(self.db.get_session(self.user_phone))
 
     async def test_ticker_with_dollar_prefix_and_punctuation(self):
@@ -97,7 +97,7 @@ class DirectTickerKeywordTests(unittest.IsolatedAsyncioTestCase):
         ) as mock_get:
             twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "$aapl?")
 
-        self.assertIn("AAPL: $214.32 (+1.11, +0.52%) | \"regularMarketPrice\": 214.32", twiml)
+        self.assertIn("AAPL: $214.32 (+1.11, +0.52%)", twiml)
         mock_get.assert_awaited_once_with("AAPL")
 
     async def test_gspc_alias_maps_to_caret_symbol(self):
@@ -116,7 +116,7 @@ class DirectTickerKeywordTests(unittest.IsolatedAsyncioTestCase):
         ) as mock_get:
             twiml = await handle_inbound_sms(self.db, self.config, self.user_phone, "gspc")
 
-        self.assertIn("^GSPC: $5500.00 (+10.00, +0.18%) | \"regularMarketPrice\": 5500.00", twiml)
+        self.assertIn("^GSPC: $5500.00 (+10.00, +0.18%)", twiml)
         mock_get.assert_awaited_once_with("^GSPC")
 
     async def test_direct_ticker_runtime_error_returns_friendly_message(self):

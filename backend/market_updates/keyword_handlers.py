@@ -154,7 +154,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
             else:
                 regular_market_price = result.get("regularMarketPrice", result["price"])
                 lines.append(
-                    f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%) | \"regularMarketPrice\": {regular_market_price:.2f}"
+                    f"{result['symbol']}: ${regular_market_price:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%)"
                 )
         return _twiml_message("\n".join(lines))
 
@@ -205,7 +205,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
             return _twiml_message(f"{direct_symbol}: unavailable")
         regular_market_price = result.get("regularMarketPrice", result["price"])
         return _twiml_message(
-            f"{result['symbol']}: ${result['price']:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%) | \"regularMarketPrice\": {regular_market_price:.2f}"
+            f"{result['symbol']}: ${regular_market_price:.2f} ({result['change']:+.2f}, {result['change_pct']:+.2f}%)"
         )
 
     if normalized == "BEAST":
