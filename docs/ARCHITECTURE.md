@@ -9,6 +9,8 @@ Core module: backend/market_updates
 
 - keyword_handlers.py: primary SMS routing, session transitions, and command orchestration.
 - keywords.py: text normalization, direct-symbol parsing, symbol lookup catalog.
+- profiles.py: user-profile assignment and per-profile keyword policy.
+- lottery.py: Powerball data fetch, normalization, and in-memory TTL caching.
 - market_data.py: Yahoo chart integration for live and historical price data.
 - youtube_service.py: livecounts stats API + fallback parsing for BEAST subscriber checks.
 - allowlist.py: allowlist matching, invite request lifecycle, permanent env allowlist parsing.
@@ -28,13 +30,25 @@ Permanent env allowlist:
 - Numbers are auto-synced into market_sms_allowlist on startup.
 - Inbound access checks always allow numbers from this env list even if the DB is empty.
 
+Profile routing:
+- Special profile `powerball_only` is assigned by normalized phone number.
+- Profile sender `+17184733934` is routed through Powerball-only logic.
+- Both `+17184733934` and `7184733934` normalize to the same profile sender.
+- Profile replies are constrained to Powerball menu/update keywords and always include a `Next:` line.
+
+Powerball cache:
+- `POWERBALL_CACHE_TTL_SECONDS` controls in-memory cache TTL for Powerball responses.
+- Default cache TTL is 900 seconds.
+
 ## Request Flow (Inbound SMS)
 
 1. Twilio POSTs to `/api/market-updates/sms`.
 2. Webhook layer normalizes inputs and calls keyword handler.
 3. Handler applies allowlist checks and approver routing.
-4. Handler resolves command, session transition, or direct ticker path.
-5. TwiML response is returned synchronously.
+4. Handler resolves user profile.
+5. Profile sender routes through profile-restricted command handling.
+6. Non-profile sender uses normal command, session, or direct-ticker path.
+7. TwiML response is returned synchronously.
 
 ## Command Routing Notes
 

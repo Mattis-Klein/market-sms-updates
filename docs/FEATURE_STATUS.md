@@ -1,6 +1,6 @@
 # Feature Status
 
-Date: 2026-06-14
+Date: 2026-06-16
 
 ## Implemented
 
@@ -14,6 +14,20 @@ Date: 2026-06-14
 - Direct index aliases map to Yahoo symbols (for example `GSPC`/`SPX` -> `^GSPC`).
 - Direct ticker branch returns a friendly fallback message on upstream/runtime failures.
 - Quote responses now include explicit `"regularMarketPrice": <value>` in message text.
+
+### Powerball-Only Profile
+- Profile `powerball_only` mapped to sender `+17184733934` (raw `7184733934` normalizes to same profile).
+- Profile keyword access restricted to: `MENU`, `CHECK`, `LOTTO`, `GUIDE`, `POWERBALL`, `PB`, `JACKPOT`, `NUMBERS`.
+- Profile menu keywords (`MENU`/`CHECK`/`LOTTO`) return Powerball-only menu.
+- Profile fallback blocks unknown/non-profile commands with a restricted-keyword reply.
+- Profile responses use short instructional text and include `Next:` guidance on every reply.
+- Normal users retain existing stock, Bitcoin, S&P, reminder, and standard menu flows.
+
+### Lottery Data Service
+- New `lottery.py` service fetches Powerball data from official Powerball API endpoints.
+- In-memory cache with `POWERBALL_CACHE_TTL_SECONDS` (default 900 seconds).
+- Friendly fallback response returned when Powerball fetch fails.
+- Partial data (missing cash option or power play) is handled gracefully.
 
 ### BEAST Utility
 - `BEAST` and `@mrbeast` alias support.

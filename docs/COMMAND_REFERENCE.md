@@ -1,6 +1,6 @@
 # Command Reference
 
-Date: 2026-06-14
+Date: 2026-06-16
 
 ## Top-Level Entry
 
@@ -80,3 +80,29 @@ When sender is approver number:
 - `PENDING`
 - `YES <id>`
 - `NO <id>`
+
+## Powerball-Only Profile Commands
+
+Profile sender:
+- `+17184733934` (normalized from either `+17184733934` or `7184733934`)
+
+Allowed commands for this profile:
+- `MENU`
+- `CHECK`
+- `LOTTO`
+- `GUIDE`
+- `POWERBALL`
+- `PB`
+- `JACKPOT`
+- `NUMBERS`
+
+Profile routing behavior:
+- `MENU`, `CHECK`, `LOTTO`: returns Powerball-only menu.
+- `GUIDE`: returns simple usage instructions.
+- `POWERBALL`, `PB`: returns full Powerball update.
+- `JACKPOT`: returns jackpot-only update.
+- `NUMBERS`: returns latest winning numbers-only update.
+- Unknown or blocked keywords: returns restricted-profile fallback.
+
+Reserved keyword note:
+- `HELP` is intentionally not used as an app keyword for this profile.

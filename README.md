@@ -45,6 +45,11 @@ Command groups:
 - Reminders: `REMIND`, `LIST`, `CANCELREMINDER <index>`
 - Feedback: `FEEDBACK <message>`
 
+Profile-specific behavior:
+- `powerball_only` profile exists for `+17184733934`.
+- This profile is restricted to: `MENU`, `CHECK`, `LOTTO`, `GUIDE`, `POWERBALL`, `PB`, `JACKPOT`, `NUMBERS`.
+- This profile receives a Powerball-only menu and does not have access to normal market/crypto/reminder keywords.
+
 Numbered menu behavior:
 - Replying with top-level numbers after `MENU` returns next-step guidance.
 - Reminder-flow numbers remain active inside reminder setup sessions.
@@ -72,6 +77,7 @@ Access and admin:
 Optional integrations:
 - `FEEDBACK_PORTAL_INGEST_URL`
 - `FEEDBACK_PORTAL_INGEST_TOKEN`
+- `POWERBALL_CACHE_TTL_SECONDS` (default `900`)
 
 ## Admin API Auth
 

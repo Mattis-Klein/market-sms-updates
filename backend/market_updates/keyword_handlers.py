@@ -23,8 +23,10 @@ from .keywords import (
     parse_direct_symbol,
     parse_list_action,
 )
+from .lottery import get_powerball_summary
 from .market_data import get_historical_close, get_latest_quote
 from .notifications import create_notification, list_notifications, summarize_notification, update_notification_flags
+from .profiles import POWERBALL_ONLY_PROFILE, get_user_profile
 from .sms_sender import send_sms
 from .youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_subscriber_count, get_channel_subscriber_count
 
@@ -87,6 +89,40 @@ REMINDER_MENU_NUMBER_MAP = {
     "4": "INTERVAL",
 }
 
+POWERBALL_MENU_TEXT = (
+    "Powerball menu:\n\n"
+    "POWERBALL or PB = full Powerball update\n"
+    "JACKPOT = jackpot and next draw\n"
+    "NUMBERS = latest winning numbers\n"
+    "GUIDE = how to use this\n\n"
+    "Next: reply POWERBALL, JACKPOT, NUMBERS, or GUIDE."
+)
+
+POWERBALL_GUIDE_TEXT = (
+    "How to use this:\n\n"
+    "Reply POWERBALL or PB to see everything.\n"
+    "Reply JACKPOT to see the jackpot only.\n"
+    "Reply NUMBERS to see the last winning numbers.\n"
+    "Reply MENU to see the choices again.\n\n"
+    "Next: reply POWERBALL, JACKPOT, NUMBERS, or MENU."
+)
+
+POWERBALL_BLOCKED_TEXT = (
+    "That word is not available here.\n\n"
+    "You can use:\n"
+    "POWERBALL\n"
+    "JACKPOT\n"
+    "NUMBERS\n"
+    "GUIDE\n"
+    "MENU\n\n"
+    "Next: reply MENU to see the choices."
+)
+
+POWERBALL_FETCH_FAILURE_TEXT = (
+    "I could not get the Powerball info right now.\n\n"
+    "Next: reply MENU to see your choices, or try POWERBALL again later."
+)
+
 
 def _twiml_message(body: str) -> str:
     escaped = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -97,6 +133,7 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     sender = normalize_phone_number(from_number)
     incoming = body.strip()
     normalized = normalize_text(incoming)
+    profile = get_user_profile(sender)
     if normalized in COMMAND_ALIASES:
         normalized = COMMAND_ALIASES[normalized]
     direct_symbol = parse_direct_symbol(normalized)
@@ -117,9 +154,18 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         if approver_reply:
             return _twiml_message(approver_reply)
 
-    if not (is_allowlisted(db, sender) or is_permanent_allowlisted(config.market_updates_allowed_numbers, sender)):
+    if not (
+        profile
+        or is_allowlisted(db, sender)
+        or is_permanent_allowlisted(config.market_updates_allowed_numbers, sender)
+    ):
         blocked = await _handle_unapproved_sender(db, config, sender, incoming, normalized)
         return _twiml_message(blocked)
+
+    if profile == POWERBALL_ONLY_PROFILE:
+        if db.get_session(sender):
+            db.clear_session(sender)
+        return _twiml_message(await _handle_powerball_only_profile(normalized))
 
     session = db.get_session(sender)
     if normalized == "STOP":
@@ -255,6 +301,70 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
         return _twiml_message(_apply_notification_action(db, sender, action["action"], action["index"]))
 
     return _twiml_message("Unknown command. Send MENU.")
+
+
+async def _handle_powerball_only_profile(normalized: str) -> str:
+    if normalized in {"MENU", "CHECK", "LOTTO"}:
+        return POWERBALL_MENU_TEXT
+
+    if normalized == "GUIDE":
+        return POWERBALL_GUIDE_TEXT
+
+    if normalized in {"POWERBALL", "PB"}:
+        try:
+            summary = await get_powerball_summary()
+        except Exception:
+            return POWERBALL_FETCH_FAILURE_TEXT
+        return (
+            "Powerball update:\n\n"
+            f"Jackpot: {_pb_value(summary, 'next_jackpot')}\n"
+            f"Cash: {_pb_value(summary, 'cash_option')}\n"
+            f"Next draw: {_pb_value(summary, 'next_draw_date')}\n\n"
+            f"Last numbers from {_pb_value(summary, 'latest_draw_date')}:\n"
+            f"{_pb_value(summary, 'white_numbers')} + PB {_pb_value(summary, 'powerball')}\n"
+            f"Power Play: {_pb_value(summary, 'power_play')}\n\n"
+            f"Source: {_pb_value(summary, 'source')}, checked {_pb_value(summary, 'fetched_at')}\n\n"
+            "Next: reply JACKPOT, NUMBERS, GUIDE, or MENU."
+        )
+
+    if normalized == "JACKPOT":
+        try:
+            summary = await get_powerball_summary()
+        except Exception:
+            return POWERBALL_FETCH_FAILURE_TEXT
+        return (
+            "Powerball jackpot:\n\n"
+            f"Jackpot: {_pb_value(summary, 'next_jackpot')}\n"
+            f"Cash: {_pb_value(summary, 'cash_option')}\n"
+            f"Next draw: {_pb_value(summary, 'next_draw_date')}\n\n"
+            f"Source: {_pb_value(summary, 'source')}, checked {_pb_value(summary, 'fetched_at')}\n\n"
+            "Next: reply POWERBALL for all info, NUMBERS for last numbers, or MENU."
+        )
+
+    if normalized == "NUMBERS":
+        try:
+            summary = await get_powerball_summary()
+        except Exception:
+            return POWERBALL_FETCH_FAILURE_TEXT
+        return (
+            "Last Powerball numbers:\n\n"
+            f"Draw date: {_pb_value(summary, 'latest_draw_date')}\n"
+            f"Numbers: {_pb_value(summary, 'white_numbers')}\n"
+            f"Powerball: {_pb_value(summary, 'powerball')}\n"
+            f"Power Play: {_pb_value(summary, 'power_play')}\n\n"
+            f"Source: {_pb_value(summary, 'source')}, checked {_pb_value(summary, 'fetched_at')}\n\n"
+            "Next: reply JACKPOT for the jackpot, POWERBALL for all info, or MENU."
+        )
+
+    return POWERBALL_BLOCKED_TEXT
+
+
+def _pb_value(summary: dict, key: str) -> str:
+    value = summary.get(key)
+    if value is None:
+        return "N/A"
+    text = str(value).strip()
+    return text or "N/A"
 
 
 async def _handle_unapproved_sender(db: Database, config: MarketConfig, sender: str, incoming: str, normalized: str) -> str:
