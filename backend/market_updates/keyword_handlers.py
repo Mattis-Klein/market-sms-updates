@@ -90,19 +90,20 @@ REMINDER_MENU_NUMBER_MAP = {
 }
 
 POWERBALL_MENU_TEXT = (
-    "Powerball menu:\n"
-    "POWERBALL full update\n"
-    "JACKPOT jackpot\n"
-    "NUMBERS last numbers\n"
-    "GUIDE help\n"
-    "Next: reply POWERBALL, JACKPOT, NUMBERS, or GUIDE."
+    "Market SMS Alerts - Powerball menu:\n"
+    "PB/POWERBALL = full update\n"
+    "JACKPOT = jackpot\n"
+    "NUMBERS = last draw\n"
+    "GUIDE = how to use\n"
+    "Next: reply POWERBALL, JACKPOT, NUMBERS, or GUIDE.\n"
+    "Reply STOP to unsubscribe. Reply HELP for help."
 )
 
 POWERBALL_GUIDE_TEXT = (
     "How to use this:\n"
-    "POWERBALL = full update\n"
+    "POWERBALL/PB = full update\n"
     "JACKPOT = jackpot only\n"
-    "NUMBERS = last numbers\n"
+    "NUMBERS = last draw\n"
     "MENU = choices\n"
     "Next: reply POWERBALL, JACKPOT, NUMBERS, or MENU."
 )
@@ -115,11 +116,8 @@ POWERBALL_BLOCKED_TEXT = (
 
 POWERBALL_FETCH_FAILURE_TEXT = (
     "I could not get the Powerball info right now.\n"
-    "Next: reply MENU or try POWERBALL again later.\n"
-    "Reply STOP to unsubscribe."
+    "Next: reply MENU or try POWERBALL again later."
 )
-
-POWERBALL_OPTOUT_TEXT = "Reply STOP to unsubscribe."
 
 
 def _twiml_message(body: str) -> str:
@@ -304,16 +302,30 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
 async def _handle_powerball_only_profile(normalized: str) -> str:
     if normalized == "STOP":
         return (
-            "You are unsubscribed.\n"
+            "Market SMS Alerts: You are unsubscribed.\n"
             "Next: reply START to re-subscribe.\n"
             "Reply HELP for help."
         )
 
+    if normalized == "START":
+        return (
+            "Market SMS Alerts: You are subscribed.\n"
+            "Next: reply MENU for commands."
+        )
+
+    if normalized == "HELP":
+        return (
+            "Market SMS Alerts help.\n"
+            "Commands: MENU, POWERBALL/PB, JACKPOT, NUMBERS, GUIDE.\n"
+            "Next: reply MENU for commands.\n"
+            "Reply STOP to unsubscribe."
+        )
+
     if normalized in {"MENU", "CHECK", "LOTTO"}:
-        return f"{POWERBALL_MENU_TEXT}\n{POWERBALL_OPTOUT_TEXT}"
+        return POWERBALL_MENU_TEXT
 
     if normalized == "GUIDE":
-        return f"{POWERBALL_GUIDE_TEXT}\n{POWERBALL_OPTOUT_TEXT}"
+        return POWERBALL_GUIDE_TEXT
 
     if normalized in {"POWERBALL", "PB"}:
         try:
@@ -322,14 +334,11 @@ async def _handle_powerball_only_profile(normalized: str) -> str:
             return POWERBALL_FETCH_FAILURE_TEXT
         return (
             "Powerball update:\n"
-            f"Jackpot: {_pb_value(summary, 'next_jackpot')}\n"
-            f"Cash: {_pb_value(summary, 'cash_option')}\n"
+            f"Jackpot: {_pb_value(summary, 'next_jackpot')} | Cash: {_pb_value(summary, 'cash_option')}\n"
             f"Next draw: {_pb_value(summary, 'next_draw_date')}\n"
-            f"Last {_pb_value(summary, 'latest_draw_date')}:\n"
-            f"{_pb_value(summary, 'white_numbers')} + PB {_pb_value(summary, 'powerball')}\n"
+            f"Last {_pb_value(summary, 'latest_draw_date')}: {_pb_value(summary, 'white_numbers')} PB {_pb_value(summary, 'powerball')}\n"
             f"Power Play: {_pb_value(summary, 'power_play')}\n"
-            "Next: reply JACKPOT, NUMBERS, GUIDE, or MENU.\n"
-            "Reply STOP to unsubscribe."
+            "Next: reply JACKPOT, NUMBERS, GUIDE, or MENU."
         )
 
     if normalized == "JACKPOT":
@@ -339,11 +348,9 @@ async def _handle_powerball_only_profile(normalized: str) -> str:
             return POWERBALL_FETCH_FAILURE_TEXT
         return (
             "Powerball jackpot:\n"
-            f"Jackpot: {_pb_value(summary, 'next_jackpot')}\n"
-            f"Cash: {_pb_value(summary, 'cash_option')}\n"
+            f"Jackpot: {_pb_value(summary, 'next_jackpot')} | Cash: {_pb_value(summary, 'cash_option')}\n"
             f"Next draw: {_pb_value(summary, 'next_draw_date')}\n"
-            "Next: reply POWERBALL for all info, NUMBERS for last numbers, or MENU.\n"
-            "Reply STOP to unsubscribe."
+            "Next: reply POWERBALL for all info, NUMBERS for last numbers, or MENU."
         )
 
     if normalized == "NUMBERS":
@@ -355,13 +362,11 @@ async def _handle_powerball_only_profile(normalized: str) -> str:
             "Last Powerball numbers:\n"
             f"Draw date: {_pb_value(summary, 'latest_draw_date')}\n"
             f"Numbers: {_pb_value(summary, 'white_numbers')}\n"
-            f"Powerball: {_pb_value(summary, 'powerball')}\n"
-            f"Power Play: {_pb_value(summary, 'power_play')}\n"
-            "Next: reply JACKPOT for the jackpot, POWERBALL for all info, or MENU.\n"
-            "Reply STOP to unsubscribe."
+            f"Powerball: {_pb_value(summary, 'powerball')} | Power Play: {_pb_value(summary, 'power_play')}\n"
+            "Next: reply JACKPOT for the jackpot, POWERBALL for all info, or MENU."
         )
 
-    return f"{POWERBALL_BLOCKED_TEXT}\n{POWERBALL_OPTOUT_TEXT}"
+    return POWERBALL_BLOCKED_TEXT
 
 
 def _pb_value(summary: dict, key: str) -> str:
