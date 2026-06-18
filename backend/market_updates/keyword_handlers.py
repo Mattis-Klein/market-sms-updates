@@ -90,37 +90,32 @@ REMINDER_MENU_NUMBER_MAP = {
 }
 
 POWERBALL_MENU_TEXT = (
-    "Powerball menu:\n\n"
-    "POWERBALL or PB = full Powerball update\n"
-    "JACKPOT = jackpot and next draw\n"
-    "NUMBERS = latest winning numbers\n"
-    "GUIDE = how to use this\n\n"
+    "Powerball menu:\n"
+    "POWERBALL full update\n"
+    "JACKPOT jackpot\n"
+    "NUMBERS last numbers\n"
+    "GUIDE help\n"
     "Next: reply POWERBALL, JACKPOT, NUMBERS, or GUIDE."
 )
 
 POWERBALL_GUIDE_TEXT = (
-    "How to use this:\n\n"
-    "Reply POWERBALL or PB to see everything.\n"
-    "Reply JACKPOT to see the jackpot only.\n"
-    "Reply NUMBERS to see the last winning numbers.\n"
-    "Reply MENU to see the choices again.\n\n"
+    "How to use this:\n"
+    "POWERBALL = full update\n"
+    "JACKPOT = jackpot only\n"
+    "NUMBERS = last numbers\n"
+    "MENU = choices\n"
     "Next: reply POWERBALL, JACKPOT, NUMBERS, or MENU."
 )
 
 POWERBALL_BLOCKED_TEXT = (
-    "That word is not available here.\n\n"
-    "You can use:\n"
-    "POWERBALL\n"
-    "JACKPOT\n"
-    "NUMBERS\n"
-    "GUIDE\n"
-    "MENU\n\n"
+    "That word is not available here.\n"
+    "Use POWERBALL, JACKPOT, NUMBERS, GUIDE, or MENU.\n"
     "Next: reply MENU to see the choices."
 )
 
 POWERBALL_FETCH_FAILURE_TEXT = (
-    "I could not get the Powerball info right now.\n\n"
-    "Next: reply MENU to see your choices, or try POWERBALL again later."
+    "I could not get the Powerball info right now.\n"
+    "Next: reply MENU or try POWERBALL again later."
 )
 
 
@@ -316,14 +311,13 @@ async def _handle_powerball_only_profile(normalized: str) -> str:
         except Exception:
             return POWERBALL_FETCH_FAILURE_TEXT
         return (
-            "Powerball update:\n\n"
+            "Powerball update:\n"
             f"Jackpot: {_pb_value(summary, 'next_jackpot')}\n"
             f"Cash: {_pb_value(summary, 'cash_option')}\n"
-            f"Next draw: {_pb_value(summary, 'next_draw_date')}\n\n"
-            f"Last numbers from {_pb_value(summary, 'latest_draw_date')}:\n"
+            f"Next draw: {_pb_value(summary, 'next_draw_date')}\n"
+            f"Last {_pb_value(summary, 'latest_draw_date')}:\n"
             f"{_pb_value(summary, 'white_numbers')} + PB {_pb_value(summary, 'powerball')}\n"
-            f"Power Play: {_pb_value(summary, 'power_play')}\n\n"
-            f"Source: {_pb_value(summary, 'source')}, checked {_pb_value(summary, 'fetched_at')}\n\n"
+            f"Power Play: {_pb_value(summary, 'power_play')}\n"
             "Next: reply JACKPOT, NUMBERS, GUIDE, or MENU."
         )
 
@@ -333,11 +327,10 @@ async def _handle_powerball_only_profile(normalized: str) -> str:
         except Exception:
             return POWERBALL_FETCH_FAILURE_TEXT
         return (
-            "Powerball jackpot:\n\n"
+            "Powerball jackpot:\n"
             f"Jackpot: {_pb_value(summary, 'next_jackpot')}\n"
             f"Cash: {_pb_value(summary, 'cash_option')}\n"
-            f"Next draw: {_pb_value(summary, 'next_draw_date')}\n\n"
-            f"Source: {_pb_value(summary, 'source')}, checked {_pb_value(summary, 'fetched_at')}\n\n"
+            f"Next draw: {_pb_value(summary, 'next_draw_date')}\n"
             "Next: reply POWERBALL for all info, NUMBERS for last numbers, or MENU."
         )
 
@@ -347,12 +340,11 @@ async def _handle_powerball_only_profile(normalized: str) -> str:
         except Exception:
             return POWERBALL_FETCH_FAILURE_TEXT
         return (
-            "Last Powerball numbers:\n\n"
+            "Last Powerball numbers:\n"
             f"Draw date: {_pb_value(summary, 'latest_draw_date')}\n"
             f"Numbers: {_pb_value(summary, 'white_numbers')}\n"
             f"Powerball: {_pb_value(summary, 'powerball')}\n"
-            f"Power Play: {_pb_value(summary, 'power_play')}\n\n"
-            f"Source: {_pb_value(summary, 'source')}, checked {_pb_value(summary, 'fetched_at')}\n\n"
+            f"Power Play: {_pb_value(summary, 'power_play')}\n"
             "Next: reply JACKPOT for the jackpot, POWERBALL for all info, or MENU."
         )
 
