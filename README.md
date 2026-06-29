@@ -44,6 +44,7 @@ Command groups:
 - Subscriber utility: `BEAST`, `@mrbeast`
 - Reminders: `REMIND`, `LIST`, `CANCELREMINDER <index>`
 - Feedback: `FEEDBACK <message>`
+- AI assistant mode: `@assist` (exit with `EXIT`, `EXIT ASSIST`, `MENU`, or `MAIN MENU`)
 
 Profile-specific behavior:
 - `powerball_only` profile exists for `+17184733934`.
@@ -78,6 +79,20 @@ Optional integrations:
 - `FEEDBACK_PORTAL_INGEST_URL`
 - `FEEDBACK_PORTAL_INGEST_TOKEN`
 - `POWERBALL_CACHE_TTL_SECONDS` (default `900`)
+
+Assistant mode environment:
+- `OPENAI_API_KEY_PRIMARY` (required): Primary OpenAI API key for assistant mode
+- `OPENAI_API_KEY_FALLBACK` (optional): Fallback OpenAI API key used on eligible failures
+- `OPENAI_MODEL` (default: `gpt-4o-mini`): OpenAI model to use
+- `ASSISTANT_AI_BASE_URL` (default: `https://api.openai.com/v1`): OpenAI API endpoint
+- `ASSISTANT_AI_TIMEOUT_SECONDS` (default: `20`): Request timeout for AI API calls
+- `ASSISTANT_SEARCH_PROVIDER` (default: `tavily`): Web search provider for live context
+- `ASSISTANT_SEARCH_API_KEY` (required): API key for web search provider
+- `ASSISTANT_SEARCH_TIMEOUT_SECONDS` (default: `8`): Request timeout for search API
+- `ASSISTANT_SEARCH_MAX_RESULTS` (default: `4`): Maximum web search results to include
+- `ASSISTANT_SESSION_EXPIRATION_MINUTES` (default: `45`): How long to keep assistant session active
+- `ASSISTANT_MAX_HISTORY_MESSAGES` (default: `12`): Max conversation history messages to retain
+- `ASSISTANT_SMS_MAX_CHARS` (default: `1200`): Max characters for SMS responses
 
 ## Admin API Auth
 

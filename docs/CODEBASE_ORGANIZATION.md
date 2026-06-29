@@ -1,12 +1,12 @@
 # Codebase Organization
 
-Date: 2026-06-14
+Date: 2026-06-28
 
 ## Guiding Principles
 
 - Keep SMS routing logic centralized in one orchestrator (`keyword_handlers.py`).
 - Keep parsing/normalization logic in `keywords.py`.
-- Keep external API adapters isolated (`market_data.py`, `youtube_service.py`, `sms_sender.py`).
+- Keep external API adapters isolated (`market_data.py`, `youtube_service.py`, `sms_sender.py`, `assistant_mode.py`).
 - Keep docs authoritative in `docs/` and change logs in `routes/`.
 
 ## Directory Roles
@@ -37,6 +37,7 @@ Date: 2026-06-14
 ## Module Ownership Map
 
 - Inbound routing/state: `keyword_handlers.py`
+- AI assistant mode orchestration/safety/search: `assistant_mode.py`
 - Parsing/lookup catalog: `keywords.py`
 - Market data retrieval: `market_data.py`
 - Subscriber utility (BEAST): `youtube_service.py`
@@ -50,6 +51,7 @@ Date: 2026-06-14
 ## Testing Organization
 
 Current test slices:
+- `test_assistant_mode.py`
 - `test_beast_keyword.py`
 - `test_direct_ticker_keyword.py`
 - `test_ticker_keywords.py`

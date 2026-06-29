@@ -1,6 +1,6 @@
 # Feature Status
 
-Date: 2026-06-16
+Date: 2026-06-28
 
 ## Implemented
 
@@ -14,6 +14,7 @@ Date: 2026-06-16
 - Direct index aliases map to Yahoo symbols (for example `GSPC`/`SPX` -> `^GSPC`).
 - Direct ticker branch returns a friendly fallback message on upstream/runtime failures.
 - Quote responses now include explicit `"regularMarketPrice": <value>` in message text.
+- Routing priority now enforces: carrier compliance, admin, dedicated keywords, reminder sessions, active assistant conversation, then unknown fallback.
 
 ### Powerball-Only Profile
 - Profile `powerball_only` mapped to sender `+17184733934` (raw `7184733934` normalizes to same profile).
@@ -29,6 +30,21 @@ Date: 2026-06-16
 - Friendly fallback response returned when Powerball fetch fails.
 - Partial data (missing cash option or power play) is handled gracefully.
 
+### AI Assistant Mode (`@assist`)
+- New `@assist` keyword starts a full AI assistant conversation per phone number.
+- Assistant mode stores isolated conversation context per sender in `market_assistant_sessions`.
+- Assistant mode exits on `EXIT`, `EXIT ASSIST`, `MENU`, `MAIN MENU` with explicit close reply.
+- Assistant session expiration is configurable (default 45 minutes inactivity).
+- Assistant includes safety controls for explicit sexual content and dangerous/criminal requests.
+- Image generation/edit requests return a fixed non-image fallback and do not call any image tool.
+- Web search integration added with provider/key/timeouts/max-result controls and URL safety filtering.
+- Assistant applies SMS-first response shaping and continuation options when responses are long.
+- **NEW:** Primary and fallback OpenAI API key support with intelligent error detection.
+  - Primary key always attempted first with exponential backoff retry (2-3 attempts).
+  - Fallback key used on eligible errors: authentication (401), rate-limit (429), temporary server errors (5xx), connection/timeout issues.
+  - Fallback NOT used on non-transient errors: content policy, invalid params, unsupported models, malformed data.
+  - Both keys never exposed in logs or user responses.
+  - Both provider failure returns safe SMS fallback message to user.
 ### BEAST Utility
 - `BEAST` and `@mrbeast` alias support.
 - livecounts stats API primary source with fallback parser.
@@ -40,6 +56,7 @@ Date: 2026-06-16
 - startup sync into allowlist table.
 - invite request flow for non-allowlisted senders.
 - approver commands: `PENDING`, `YES <id>`, `NO <id>`.
+- Carrier compliance commands (`STOP/START/HELP` variants) handled before app keywords.
 
 ### Notifications
 - Multi-step reminder creation flow.

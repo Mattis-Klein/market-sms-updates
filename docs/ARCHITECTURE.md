@@ -7,7 +7,8 @@ Path: backend/app/main.py
 
 Core module: backend/market_updates
 
-- keyword_handlers.py: primary SMS routing, session transitions, and command orchestration.
+- keyword_handlers.py: primary SMS routing, session transitions, command orchestration, and assistant-mode priority handling.
+- assistant_mode.py: AI assistant policy, web-search integration, SMS response shaping, safety/refusal logic, and dual OpenAI provider fallback handling.
 - keywords.py: text normalization, direct-symbol parsing, symbol lookup catalog.
 - profiles.py: user-profile assignment and per-profile keyword policy.
 - lottery.py: Powerball data fetch, normalization, and in-memory TTL caching.
@@ -23,6 +24,8 @@ Core module: backend/market_updates
 
 Storage:
 - SQLite at MARKET_UPDATES_DB_PATH.
+- Reminder workflow sessions in `market_sms_sessions`.
+- Assistant mode state and conversation history in `market_assistant_sessions` keyed by phone number.
 
 Permanent env allowlist:
 - MARKET_UPDATES_ALLOWED_NUMBERS is parsed as a comma-separated number list.
@@ -40,15 +43,25 @@ Powerball cache:
 - `POWERBALL_CACHE_TTL_SECONDS` controls in-memory cache TTL for Powerball responses.
 - Default cache TTL is 900 seconds.
 
+OpenAI API Redundancy:
+- Primary key: `OPENAI_API_KEY_PRIMARY` (required).
+- Fallback key: `OPENAI_API_KEY_FALLBACK` (optional, recommended for production).
+- Both keys are never logged or exposed in responses.
+- Primary is attempted first with exponential backoff retry (2-3 attempts max).
+- Fallback is used on eligible failures: authentication (401), rate-limit (429), temporary server errors (5xx), or connection/timeout issues.
+- Fallback is NOT used for non-transient errors: content policy violations, invalid parameters, unsupported models, or malformed data.
+- Both providers fail: user receives safe fallback message.
+
 ## Request Flow (Inbound SMS)
 
 1. Twilio POSTs to `/api/market-updates/sms`.
 2. Webhook layer normalizes inputs and calls keyword handler.
-3. Handler applies allowlist checks and approver routing.
-4. Handler resolves user profile.
-5. Profile sender routes through profile-restricted command handling.
-6. Non-profile sender uses normal command, session, or direct-ticker path.
-7. TwiML response is returned synchronously.
+3. Handler applies carrier compliance keyword routing (`STOP/START/HELP`) first.
+4. Handler applies approver/admin routing.
+5. Handler applies allowlist/profile checks.
+6. Handler applies dedicated keyword routing and active reminder-session flow.
+7. Handler applies active `@assist` conversation flow when no higher-priority route matches.
+8. TwiML response is returned synchronously.
 
 ## Command Routing Notes
 
@@ -56,6 +69,10 @@ Powerball cache:
 - Reminder sessions support numeric choices scoped to reminder setup.
 - Direct ticker path handles formatted single-symbol messages.
 - Explicit commands always take precedence over direct symbol parsing.
+- `@assist` starts or restarts assistant mode for that phone number.
+- Assistant mode exits on `EXIT`, `EXIT ASSIST`, `MENU`, or `MAIN MENU`.
+- Assistant sessions expire after a configurable inactivity window.
+- Dedicated app keywords still take precedence over active assistant conversation state.
 
 ## Frontend Admin
 

@@ -1,6 +1,6 @@
 # Testing and Quality
 
-Date: 2026-06-14
+Date: 2026-06-28
 
 ## Test Runner
 
@@ -21,6 +21,10 @@ cd backend
 - symbol discovery keywords
 - BEAST source/fallback logic
 - allowlist and invite behavior
+- assistant mode entry, active conversation routing, and exits
+- assistant session expiration and per-phone isolation
+- assistant image-request blocking and explicit-content refusal
+- assistant web-search success/failure handling
 
 ## Test Philosophy
 

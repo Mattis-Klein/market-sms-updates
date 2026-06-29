@@ -1,6 +1,6 @@
 # Project Overview
 
-Date: 2026-06-14
+Date: 2026-06-28
 
 ## Product Goal
 
@@ -12,6 +12,7 @@ Market SMS Assistant provides fast, text-first access to market and utility work
 - Check historical close data by date.
 - Discover symbols from natural-language queries.
 - Configure and manage notification/reminder rules.
+- Use `@assist` for general AI help and live web-backed answers.
 - Submit product feedback from SMS.
 
 ## System Components
@@ -27,6 +28,7 @@ Market SMS Assistant provides fast, text-first access to market and utility work
 - Number replies from top-level menu return command-specific next steps.
 - Direct ticker input is supported for quick quote responses.
 - Symbol discovery is available through `SYMBOL <query>` and `TICKERS`.
+- `@assist` starts a per-phone conversational assistant mode with configurable session expiry.
 
 ## Deployment Context
 

@@ -1,6 +1,18 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+
+from .assistant_mode import (
+    ASSIST_EXIT_REPLY,
+    ASSIST_START_REPLY,
+    assistant_now,
+    compliance_reply,
+    generate_assistant_reply,
+    is_assist_exit_command,
+    is_assist_start_command,
+    is_compliance_command,
+)
 
 from .allowlist import (
     create_invite_request,
@@ -29,6 +41,10 @@ from .notifications import create_notification, list_notifications, summarize_no
 from .profiles import POWERBALL_ONLY_PROFILE, get_user_profile
 from .sms_sender import send_sms
 from .youtube_service import MRBEAST_CHANNEL_ID, LivecountsServiceError, format_subscriber_count, get_channel_subscriber_count
+
+
+logger = logging.getLogger(__name__)
+COMMAND_PREFIXES = ("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "SYMBOL", "FEEDBACK", "CANCELREMINDER")
 
 
 MENU_TEXT = (
@@ -130,20 +146,19 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     incoming = body.strip()
     normalized = normalize_text(incoming)
     profile = get_user_profile(sender)
+
     if normalized in COMMAND_ALIASES:
         normalized = COMMAND_ALIASES[normalized]
+
     direct_symbol = parse_direct_symbol(normalized)
-    if normalized == "STOP" or normalized in GLOBAL_COMMANDS or normalized.startswith((
-        "CHECK",
-        "DATECHECK",
-        "TICKER",
-        "LOOKUP",
-        "FIND",
-        "SYMBOL",
-        "FEEDBACK",
-        "CANCELREMINDER",
-    )):
-        direct_symbol = None
+    if _is_dedicated_command(normalized, direct_symbol):
+        direct_symbol = None if (normalized in GLOBAL_COMMANDS or normalized.startswith(COMMAND_PREFIXES)) else direct_symbol
+
+    if is_compliance_command(normalized):
+        if db.get_session(sender):
+            db.clear_session(sender)
+        db.deactivate_assistant_session(sender)
+        return _twiml_message(compliance_reply(normalized))
 
     if sender == normalize_phone_number(config.market_access_approver_number):
         approver_reply = await _handle_approver_message(db, config, normalized)
@@ -161,21 +176,35 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     if profile == POWERBALL_ONLY_PROFILE:
         if db.get_session(sender):
             db.clear_session(sender)
+        db.deactivate_assistant_session(sender)
         return _twiml_message(await _handle_powerball_only_profile(normalized))
 
     session = db.get_session(sender)
-    if normalized == "STOP":
-        db.clear_session(sender)
-        return _twiml_message("Canceled. Send MENU for commands.")
+
+    if is_assist_start_command(normalized, incoming):
+        if session and _is_critical_session_state(session["state"]):
+            return _twiml_message("Finish or cancel your current confirmation step first. Reply STOP to cancel it.")
+        if session:
+            db.clear_session(sender)
+        now = assistant_now()
+        db.activate_assistant_session(sender, now, now)
+        logger.info("assistant_mode_started", extra={"phone": sender[-4:]})
+        return _twiml_message(ASSIST_START_REPLY)
+
+    active_assistant_session = db.get_active_assistant_session(sender, config.assistant_session_expiration_minutes)
+
+    if active_assistant_session and is_assist_exit_command(normalized):
+        db.deactivate_assistant_session(sender)
+        logger.info("assistant_mode_closed", extra={"phone": sender[-4:]})
+        return _twiml_message(ASSIST_EXIT_REPLY)
 
     if session and session["state"] == "await_remind_type" and normalized in REMINDER_MENU_NUMBER_MAP:
         direct_symbol = None
 
-    if normalized in GLOBAL_COMMANDS or normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "SYMBOL", "FEEDBACK", "CANCELREMINDER")) or direct_symbol:
+    if _is_dedicated_command(normalized, direct_symbol):
         if session:
             db.clear_session(sender)
-
-    if session and normalized not in GLOBAL_COMMANDS and not normalized.startswith(("CHECK", "DATECHECK", "TICKER", "LOOKUP", "FIND", "SYMBOL", "FEEDBACK", "CANCELREMINDER")) and not direct_symbol:
+    elif session:
         return _twiml_message(await _continue_session(db, sender, normalized, session["state"], session["draft"]))
 
     if normalized in MENU_NUMBER_HELP:
@@ -296,7 +325,33 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     if action:
         return _twiml_message(_apply_notification_action(db, sender, action["action"], action["index"]))
 
+    if active_assistant_session:
+        response, new_history = await generate_assistant_reply(
+            config=config,
+            phone_number=sender,
+            user_message=incoming,
+            history=active_assistant_session.get("assistant_conversation_history", []),
+        )
+        now = assistant_now()
+        db.upsert_assistant_session(
+            phone_number=sender,
+            assistant_mode_active=True,
+            assistant_started_at=active_assistant_session.get("assistant_started_at") or now,
+            assistant_last_activity_at=now,
+            assistant_conversation_history=new_history,
+        )
+        return _twiml_message(response)
+
     return _twiml_message("Unknown command. Send MENU.")
+
+
+def _is_critical_session_state(state: str) -> bool:
+    critical_states = set()
+    return state in critical_states
+
+
+def _is_dedicated_command(normalized: str, direct_symbol: str | None) -> bool:
+    return normalized in GLOBAL_COMMANDS or normalized.startswith(COMMAND_PREFIXES) or bool(direct_symbol)
 
 
 async def _handle_powerball_only_profile(normalized: str) -> str:

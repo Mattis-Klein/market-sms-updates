@@ -1,6 +1,6 @@
 # Command Reference
 
-Date: 2026-06-16
+Date: 2026-06-28
 
 ## Top-Level Entry
 
@@ -62,7 +62,31 @@ Reminder wizard numeric options:
 ## Feedback and Control
 
 - `FEEDBACK <message>`
-- `STOP`
+
+Carrier compliance commands (highest priority):
+- `STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`, `END`, `QUIT`
+- `START`, `YES`, `UNSTOP`
+- `HELP`, `INFO`
+
+## AI Assistant Mode
+
+Start:
+- `@assist`
+- Reply: `How can I assist you today?`
+
+While active:
+- Non-keyword messages route to assistant conversation mode with per-phone memory.
+- Dedicated app keywords still route to their dedicated handlers first.
+- If web search is unavailable during a web-needed query, assistant returns a live-search failure notice and a general fallback answer.
+
+Exit commands:
+- `EXIT`
+- `EXIT ASSIST`
+- `MENU`
+- `MAIN MENU`
+
+Exit reply:
+- `Assistant mode closed. Reply MENU to see available options.`
 
 ## Access and Invite Behavior
 
