@@ -21,7 +21,7 @@ def _parse_iso(value: str | None):
 
 async def run_notification_batch(dry_run: bool = False):
     config = load_config()
-    db = Database(config.market_updates_db_path)
+    db = Database(config.market_updates_db_path, database_url=config.database_url)
     now = datetime.now(timezone.utc)
     sent = 0
 

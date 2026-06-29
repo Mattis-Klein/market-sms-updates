@@ -1,11 +1,25 @@
+from __future__ import annotations
+
 import json
+import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
+except Exception:  # pragma: no cover - optional dependency for local sqlite runs
+    psycopg = None
+    dict_row = None
+    ConnectionPool = None
 
 
-SCHEMA = """
+SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS market_sms_sessions (
     phone_number TEXT PRIMARY KEY,
     state TEXT NOT NULL,
@@ -94,36 +108,238 @@ ON market_scheduled_reminders (phone_number, deduplication_key)
 WHERE deduplication_key IS NOT NULL;
 """
 
+POSTGRES_SCHEMA_STATEMENTS = [
+    """
+    CREATE TABLE IF NOT EXISTS market_sms_sessions (
+        phone_number TEXT PRIMARY KEY,
+        state TEXT NOT NULL,
+        draft_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_notifications (
+        id BIGSERIAL PRIMARY KEY,
+        phone_number TEXT NOT NULL,
+        notification_type TEXT NOT NULL,
+        symbol TEXT,
+        condition TEXT,
+        threshold DOUBLE PRECISION,
+        message TEXT,
+        due_at TEXT,
+        daily_time TEXT,
+        interval_minutes INTEGER,
+        interval_start_at TEXT,
+        interval_stop_at TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        completed INTEGER NOT NULL DEFAULT 0,
+        last_triggered_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_sms_allowlist (
+        phone_number TEXT PRIMARY KEY,
+        label TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_sms_invite_requests (
+        id BIGSERIAL PRIMARY KEY,
+        phone_number TEXT NOT NULL,
+        status TEXT NOT NULL,
+        request_text TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_feedback_entries (
+        id BIGSERIAL PRIMARY KEY,
+        phone_number TEXT NOT NULL,
+        message TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_assistant_sessions (
+        phone_number TEXT PRIMARY KEY,
+        assistant_mode_active INTEGER NOT NULL DEFAULT 0,
+        assistant_started_at TEXT,
+        assistant_last_activity_at TEXT,
+        assistant_conversation_history TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_scheduled_reminders (
+        id BIGSERIAL PRIMARY KEY,
+        phone_number TEXT NOT NULL,
+        reminder_text TEXT NOT NULL,
+        scheduled_at_utc TEXT NOT NULL,
+        scheduled_at_local TEXT NOT NULL,
+        timezone TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL,
+        sent_at TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        deduplication_key TEXT,
+        claimed_at TEXT
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_market_scheduled_reminders_due ON market_scheduled_reminders (status, scheduled_at_utc)",
+    "CREATE INDEX IF NOT EXISTS idx_market_scheduled_reminders_phone ON market_scheduled_reminders (phone_number, status, scheduled_at_utc)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_market_scheduled_reminders_dedup ON market_scheduled_reminders (phone_number, deduplication_key) WHERE deduplication_key IS NOT NULL",
+]
+
+_INSERT_ID_TABLES = {
+    "market_notifications",
+    "market_sms_invite_requests",
+    "market_feedback_entries",
+    "market_scheduled_reminders",
+}
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class QueryResult:
+    def __init__(self, rows: list[dict[str, Any]], rowcount: int, lastrowid: int | None):
+        self._rows = rows
+        self.rowcount = rowcount
+        self.lastrowid = lastrowid
+
+    def fetchone(self):
+        if not self._rows:
+            return None
+        return self._rows[0]
+
+    def fetchall(self):
+        return list(self._rows)
+
+
+class _CompatConnection:
+    def __init__(self, conn, backend: str):
+        self._conn = conn
+        self.backend = backend
+
+    @staticmethod
+    def _sqlite_rows(cursor) -> list[dict]:
+        if cursor.description is None:
+            return []
+        rows = cursor.fetchall()
+        return [dict(row) if not isinstance(row, dict) else row for row in rows]
+
+    @staticmethod
+    def _convert_sql_params(query: str) -> str:
+        return query.replace("?", "%s")
+
+    @staticmethod
+    def _extract_insert_table(query: str) -> str | None:
+        match = re.match(r"\s*INSERT\s+INTO\s+([a-zA-Z0-9_]+)", query, flags=re.IGNORECASE)
+        return (match.group(1) or "").lower() if match else None
+
+    def execute(self, query: str, params: tuple | list = ()):  # noqa: ANN001
+        if self.backend == "sqlite":
+            cur = self._conn.execute(query, tuple(params))
+            rows = self._sqlite_rows(cur)
+            return QueryResult(rows=rows, rowcount=cur.rowcount, lastrowid=cur.lastrowid)
+
+        sql = self._convert_sql_params(query)
+        table = self._extract_insert_table(sql)
+        if table in _INSERT_ID_TABLES and "returning" not in sql.lower():
+            sql = f"{sql.rstrip().rstrip(';')} RETURNING id"
+
+        cur = self._conn.cursor(row_factory=dict_row)
+        cur.execute(sql, tuple(params))
+        rows = []
+        if cur.description is not None:
+            rows = [dict(row) for row in cur.fetchall()]
+        lastrowid = int(rows[0]["id"]) if rows and "id" in rows[0] else None
+        rowcount = cur.rowcount
+        cur.close()
+        return QueryResult(rows=rows, rowcount=rowcount, lastrowid=lastrowid)
+
+    def executemany(self, query: str, seq_of_params):  # noqa: ANN001
+        if self.backend == "sqlite":
+            self._conn.executemany(query, seq_of_params)
+            return
+        sql = self._convert_sql_params(query)
+        self._conn.executemany(sql, seq_of_params)
+
+
 class Database:
-    def __init__(self, path: str):
+    def __init__(self, path: str, database_url: str | None = None):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.database_url = (database_url or os.getenv("DATABASE_URL", "")).strip()
+        self.backend = "postgres" if self.should_use_postgres(self.database_url) else "sqlite"
+        self.pool: ConnectionPool | None = None
+
+        if self.backend == "postgres":
+            if psycopg is None or ConnectionPool is None:
+                raise RuntimeError("PostgreSQL backend selected but psycopg/psycopg_pool is not installed")
+            self.pool = ConnectionPool(conninfo=self.database_url, min_size=1, max_size=10, kwargs={"autocommit": False})
         self._init_db()
 
+    @staticmethod
+    def should_use_postgres(database_url: str | None) -> bool:
+        if not database_url:
+            return False
+        lowered = database_url.strip().lower()
+        return lowered.startswith("postgres://") or lowered.startswith("postgresql://")
+
+    @property
+    def is_postgres(self) -> bool:
+        return self.backend == "postgres"
+
     def _init_db(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.executescript(SCHEMA)
+        if self.backend == "sqlite":
+            with sqlite3.connect(self.path) as conn:
+                conn.executescript(SQLITE_SCHEMA)
+            return
+
+        with self.pool.connection() as conn:
+            with conn.cursor() as cur:
+                for statement in POSTGRES_SCHEMA_STATEMENTS:
+                    cur.execute(statement)
+            conn.commit()
 
     @contextmanager
     def connect(self):
-        conn = sqlite3.connect(self.path)
-        conn.row_factory = sqlite3.Row
-        try:
-            yield conn
-            conn.commit()
-        finally:
-            conn.close()
+        if self.backend == "sqlite":
+            conn = sqlite3.connect(self.path)
+            conn.row_factory = sqlite3.Row
+            wrapper = _CompatConnection(conn, backend="sqlite")
+            try:
+                yield wrapper
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+            return
+
+        with self.pool.connection() as conn:
+            wrapper = _CompatConnection(conn, backend="postgres")
+            try:
+                yield wrapper
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def get_session(self, phone_number: str):
         with self.connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM market_sms_sessions WHERE phone_number = ?", (phone_number,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM market_sms_sessions WHERE phone_number = ?", (phone_number,)).fetchone()
             if not row:
                 return None
             return {
@@ -150,10 +366,7 @@ class Database:
 
     def get_assistant_session(self, phone_number: str):
         with self.connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM market_assistant_sessions WHERE phone_number = ?",
-                (phone_number,),
-            ).fetchone()
+            row = conn.execute("SELECT * FROM market_assistant_sessions WHERE phone_number = ?", (phone_number,)).fetchone()
             if not row:
                 return None
             try:
@@ -209,24 +422,18 @@ class Database:
             )
 
     def activate_assistant_session(self, phone_number: str, started_at: str, last_activity_at: str) -> None:
-        self.upsert_assistant_session(
-            phone_number=phone_number,
-            assistant_mode_active=True,
-            assistant_started_at=started_at,
-            assistant_last_activity_at=last_activity_at,
-            assistant_conversation_history=[],
-        )
+        self.upsert_assistant_session(phone_number, True, started_at, last_activity_at, [])
 
     def deactivate_assistant_session(self, phone_number: str) -> None:
         existing = self.get_assistant_session(phone_number)
         if not existing:
             return
         self.upsert_assistant_session(
-            phone_number=phone_number,
-            assistant_mode_active=False,
-            assistant_started_at=existing.get("assistant_started_at"),
-            assistant_last_activity_at=existing.get("assistant_last_activity_at"),
-            assistant_conversation_history=[],
+            phone_number,
+            False,
+            existing.get("assistant_started_at"),
+            existing.get("assistant_last_activity_at"),
+            [],
         )
 
     def get_active_assistant_session(self, phone_number: str, expiration_minutes: int):
@@ -377,14 +584,7 @@ class Database:
                     last_error = NULL
                 WHERE id = ? AND phone_number = ? AND status IN ('pending', 'processing')
                 """,
-                (
-                    reminder_text,
-                    scheduled_at_utc,
-                    scheduled_at_local,
-                    timezone_name,
-                    reminder_id,
-                    phone_number,
-                ),
+                (reminder_text, scheduled_at_utc, scheduled_at_local, timezone_name, reminder_id, phone_number),
             )
             return cur.rowcount > 0
 
@@ -422,6 +622,27 @@ class Database:
 
     def claim_due_scheduled_reminders(self, now_utc: str, limit: int = 50) -> list[dict]:
         with self.connect() as conn:
+            if self.is_postgres:
+                rows = conn.execute(
+                    """
+                    WITH due AS (
+                        SELECT id
+                        FROM market_scheduled_reminders
+                        WHERE status = 'pending' AND scheduled_at_utc <= ?
+                        ORDER BY scheduled_at_utc ASC, id ASC
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT ?
+                    )
+                    UPDATE market_scheduled_reminders r
+                    SET status = 'processing', claimed_at = ?
+                    FROM due
+                    WHERE r.id = due.id
+                    RETURNING r.*
+                    """,
+                    (now_utc, max(1, limit), utc_now()),
+                ).fetchall()
+                return [dict(row) for row in rows]
+
             rows = conn.execute(
                 """
                 SELECT id FROM market_scheduled_reminders
@@ -488,3 +709,20 @@ class Database:
                 """,
                 (error_text[:500], reminder_id),
             )
+
+    def list_existing_tables(self) -> list[str]:
+        with self.connect() as conn:
+            if self.is_postgres:
+                rows = conn.execute(
+                    """
+                    SELECT tablename FROM pg_catalog.pg_tables
+                    WHERE schemaname = 'public'
+                    ORDER BY tablename
+                    """
+                ).fetchall()
+                return [row["tablename"] for row in rows]
+
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+            ).fetchall()
+            return [row["name"] for row in rows]

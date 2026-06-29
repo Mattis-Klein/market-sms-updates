@@ -1,6 +1,6 @@
 # Project Overview
 
-Date: 2026-06-28
+Date: 2026-06-29
 
 ## Product Goal
 
@@ -40,7 +40,8 @@ Market SMS Assistant provides fast, text-first access to market and utility work
 
 ## Persistence
 
-- SQLite database controlled by `MARKET_UPDATES_DB_PATH`.
+- Local/dev SQLite database controlled by `MARKET_UPDATES_DB_PATH`.
+- Production shared PostgreSQL via `DATABASE_URL` for multi-process web+worker deployments.
 - Persistent reminder records are stored separately from assistant conversation session state.
 
 ## Security Posture

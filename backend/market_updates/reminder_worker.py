@@ -73,18 +73,22 @@ async def process_due_reminders_once(db: Database, config) -> dict:
 
 async def run_reminder_worker_forever() -> None:
     config = load_config()
-    db = Database(config.market_updates_db_path)
+    db = Database(config.market_updates_db_path, database_url=config.database_url)
 
     if not config.reminders_enabled:
         logger.info("reminders_disabled_worker_idle")
         return
 
     logger.info("reminder_worker_started", extra={"poll_seconds": config.reminder_poll_seconds})
+    heartbeat_tick = 0
     while True:
         try:
             result = await process_due_reminders_once(db, config)
+            heartbeat_tick += 1
             if result["processed"]:
                 logger.info("reminder_worker_batch", extra=result)
+            elif heartbeat_tick % max(1, int(300 / max(config.reminder_poll_seconds, 5))) == 0:
+                logger.info("reminder_worker_heartbeat", extra={"poll_seconds": config.reminder_poll_seconds})
         except Exception:
             logger.exception("reminder_worker_unhandled_error")
         await asyncio.sleep(max(config.reminder_poll_seconds, 5))

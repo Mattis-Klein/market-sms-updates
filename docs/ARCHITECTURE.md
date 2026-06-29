@@ -25,10 +25,13 @@ Core module: backend/market_updates
 - admin_api.py: authenticated admin API surface.
 
 Storage:
-- SQLite at MARKET_UPDATES_DB_PATH.
+- Dual backend via `market_updates.db`:
+	- SQLite at `MARKET_UPDATES_DB_PATH` for local/dev fallback.
+	- PostgreSQL via `DATABASE_URL` for shared production persistence.
 - Reminder workflow sessions in `market_sms_sessions`.
 - Assistant mode state and conversation history in `market_assistant_sessions` keyed by phone number.
 - Persistent assistant reminders in `market_scheduled_reminders` with statuses: pending, processing, sent, failed, cancelled.
+- PostgreSQL mode uses connection pooling and DB-level atomic reminder claim semantics for multi-process safety.
 
 Permanent env allowlist:
 - MARKET_UPDATES_ALLOWED_NUMBERS is parsed as a comma-separated number list.
@@ -74,7 +77,7 @@ OpenAI API Redundancy:
 - Direct ticker path handles formatted single-symbol messages.
 - Explicit commands always take precedence over direct symbol parsing.
 - `@assist` starts or restarts assistant mode for that phone number.
-- Assistant mode exits on `EXIT`, `EXIT ASSIST`, `MENU`, or `MAIN MENU`.
+- Assistant mode exits only on exact commands `@exit` and `@assist off`.
 - Assistant sessions expire after a configurable inactivity window.
 - Active assistant conversation state takes precedence over normal app keywords.
 - Reserved assistant exit commands are exact-only: `@exit` and `@assist off`.
@@ -88,6 +91,13 @@ OpenAI API Redundancy:
 - Twilio success marks `sent`; temporary failures are retried; permanent failures are marked `failed`.
 - Stuck `processing` reminders are recovered back to `pending` after timeout.
 - Outbound reminder texts are sent directly via Twilio sender and are not routed back through inbound keyword handling.
+
+## Production Deployment Topology
+
+- Web process: handles inbound SMS and reminder creation.
+- Worker process: independently polls and delivers due reminders.
+- Shared PostgreSQL: both processes use the same reminder/session tables through `DATABASE_URL`.
+- Render Blueprint (`render.yaml`) defines web service, worker service, and shared PostgreSQL resource.
 
 ## Frontend Admin
 

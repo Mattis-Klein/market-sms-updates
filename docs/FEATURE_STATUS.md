@@ -1,6 +1,6 @@
 # Feature Status
 
-Date: 2026-06-28
+Date: 2026-06-29
 
 ## Implemented
 
@@ -53,6 +53,18 @@ Date: 2026-06-28
 - Reminder worker performs atomic claim/send/retry to prevent duplicate delivery.
 - Temporary Twilio failures retry with bounded attempts; permanent failures stop retrying.
 - Reminder data persists across restarts/deploys and is separate from assistant conversation expiration.
+
+### Production Deployment Hardening (Web + Worker + Shared PostgreSQL)
+- Database layer now supports both SQLite (local/dev) and PostgreSQL (production/shared) backends.
+- `DATABASE_URL` now activates PostgreSQL connection pooling and shared-table access across processes.
+- Web API and reminder worker are both wired to the same `DATABASE_URL` to support true cross-process reminder handoff.
+- Added Render Blueprint (`render.yaml`) for dedicated web service, dedicated reminder worker, and shared managed PostgreSQL.
+- Added one-time migration tool `backend/scripts/migrate_sqlite_to_postgres.py` with:
+  - automatic SQLite backup before copy,
+  - destination non-empty safety refusal by default,
+  - explicit force flag for controlled overwrite scenarios.
+- Reminder intent routing now takes priority over current-info search routing to prevent accidental web-search-only handling of reminder requests.
+- Added regression tests for backend selection, migration safety, atomic reminder claiming behavior, and reminder-vs-web-search intent conflicts.
 ### BEAST Utility
 - `BEAST` and `@mrbeast` alias support.
 - livecounts stats API primary source with fallback parser.
@@ -82,3 +94,4 @@ Date: 2026-06-28
 - Add stronger auth (SSO/JWT) for admin and feedback portal.
 - Add retry/queueing for outbound and forwarding failures.
 - Expand CI and quality gates beyond current focused unit coverage.
+- Production readiness remains gated on live proof: do not declare fully production-ready until a reminder is created by the web service and delivered by a separately running worker using the same persistent PostgreSQL database.

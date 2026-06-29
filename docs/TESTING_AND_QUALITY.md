@@ -1,16 +1,23 @@
 # Testing and Quality
 
-Date: 2026-06-28
+Date: 2026-06-29
 
 ## Test Runner
 
-Backend tests use Python unittest.
+Backend tests use pytest.
 
 Run all backend tests:
 
 ```bash
 cd backend
-../.venv/Scripts/python.exe -m unittest discover -s tests -p "test_*.py"
+../.venv/Scripts/python.exe -m pytest tests -v --tb=short
+```
+
+Targeted deployment-hardening tests:
+
+```bash
+cd backend
+../.venv/Scripts/python.exe -m pytest tests/test_assistant_mode.py tests/test_postgres_deployment.py -v
 ```
 
 ## Current Coverage Focus
@@ -29,6 +36,9 @@ cd backend
 - assistant-mode routing precedence over normal keyword handlers while active
 - natural-language reminder scheduling persistence, worker delivery, retry, and duplicate prevention
 - reminder ownership boundaries (users cannot manage reminders owned by other numbers)
+- dual-backend database selection (SQLite vs PostgreSQL)
+- migration safety behavior (backup, copy, destination non-empty refusal)
+- reminder-vs-current-info routing conflict protection
 
 ## Test Philosophy
 

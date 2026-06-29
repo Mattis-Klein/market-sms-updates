@@ -96,6 +96,18 @@ _CURRENT_INFO_HINT_PATTERNS = [
     r"\brelease\b",
 ]
 
+_REMINDER_INTENT_PATTERNS = [
+    r"\bremind me\b",
+    r"\bset (a )?reminder\b",
+    r"\bwhat reminders\b",
+    r"\bshow my reminders\b",
+    r"\blist reminders\b",
+    r"\bcancel (my )?reminder\b",
+    r"\bdelete (all )?reminders\b",
+    r"\bchange (my )?.*reminder\b",
+    r"\bupdate (my )?.*reminder\b",
+]
+
 
 @dataclass
 class ResponsesExecutionResult:
@@ -154,6 +166,30 @@ def should_force_web_search(message: str, force_enabled: bool) -> bool:
         return False
     text = message.lower()
     return any(re.search(pattern, text) for pattern in _CURRENT_INFO_HINT_PATTERNS)
+
+
+def has_reminder_intent(message: str) -> bool:
+    text = message.lower()
+    return any(re.search(pattern, text) for pattern in _REMINDER_INTENT_PATTERNS)
+
+
+def classify_intent(message: str, force_web_enabled: bool) -> str:
+    if has_reminder_intent(message):
+        return "reminder"
+    if should_force_web_search(message, force_web_enabled):
+        return "current_info"
+    return "general"
+
+
+def reminder_tool_choice_for_message(message: str) -> dict[str, str]:
+    text = message.lower()
+    if any(word in text for word in ["what reminders", "show my reminders", "list reminders"]):
+        return {"type": "function", "name": "list_reminders"}
+    if any(word in text for word in ["cancel", "delete all", "delete reminder"]):
+        return {"type": "function", "name": "cancel_reminder"}
+    if any(word in text for word in ["change", "update"]):
+        return {"type": "function", "name": "update_reminder"}
+    return {"type": "function", "name": "schedule_reminder"}
 
 
 def trim_history(history: list[dict[str, str]], max_history_messages: int) -> list[dict[str, str]]:
@@ -593,7 +629,8 @@ async def generate_assistant_reply(
 
     tz_name = config.assist_default_timezone or "America/New_York"
     local_now = datetime.now(timezone.utc).astimezone(_safe_zoneinfo(tz_name))
-    force_web = should_force_web_search(user_message, config.assist_force_web_for_current_info)
+    intent = classify_intent(user_message, config.assist_force_web_for_current_info)
+    force_web = intent == "current_info"
 
     system_prompt = (
         "You are an SMS assistant. Keep replies concise and direct. "
@@ -607,11 +644,19 @@ async def generate_assistant_reply(
     input_messages.extend(trim_history(history, config.assistant_max_history_messages))
     input_messages.append({"role": "user", "content": user_message})
 
+    tool_choice: Any
+    if intent == "reminder":
+        tool_choice = reminder_tool_choice_for_message(user_message)
+    elif force_web:
+        tool_choice = "required"
+    else:
+        tool_choice = "auto"
+
     payload = {
         "model": config.openai_model,
         "input": input_messages,
         "tools": [{"type": "web_search"}] + _build_reminder_tools(),
-        "tool_choice": "required" if force_web else "auto",
+        "tool_choice": tool_choice,
     }
 
     result = await _execute_responses_loop(payload, db, phone_number, config)

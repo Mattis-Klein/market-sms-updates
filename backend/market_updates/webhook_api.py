@@ -10,7 +10,7 @@ from .keyword_handlers import handle_inbound_sms
 
 router = APIRouter(tags=["market-webhook"])
 config = load_config()
-db = Database(config.market_updates_db_path)
+db = Database(config.market_updates_db_path, database_url=config.database_url)
 seed_allowlist(db, config.market_updates_allowed_numbers)
 
 

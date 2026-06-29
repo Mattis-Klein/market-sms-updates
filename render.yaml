@@ -1,0 +1,84 @@
+services:
+  - type: web
+    name: market-sms-assistant-web
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ASSIST_DEFAULT_TIMEZONE
+        value: America/New_York
+      - key: ASSIST_FORCE_WEB_FOR_CURRENT_INFO
+        value: "true"
+      - key: REMINDERS_ENABLED
+        value: "true"
+      - key: REMINDERS_RUN_IN_WEB
+        value: "false"
+      - key: REMINDER_POLL_SECONDS
+        value: "15"
+      - key: REMINDER_MAX_ATTEMPTS
+        value: "3"
+      - key: REMINDER_RETRY_DELAY_SECONDS
+        value: "60"
+      - key: REMINDER_PROCESSING_TIMEOUT_SECONDS
+        value: "300"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: market-sms-assistant-db
+          property: connectionString
+      - key: OPENAI_API_KEY_PRIMARY
+        sync: false
+      - key: OPENAI_API_KEY_FALLBACK
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: MARKET_ADMIN_TOKEN
+        sync: false
+      - key: MARKET_ACCESS_APPROVER_NUMBER
+        sync: false
+      - key: MARKET_UPDATES_ALLOWED_NUMBERS
+        sync: false
+      - key: FEEDBACK_PORTAL_INGEST_URL
+        sync: false
+      - key: FEEDBACK_PORTAL_INGEST_TOKEN
+        sync: false
+
+  - type: worker
+    name: market-sms-assistant-reminder-worker
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m market_updates.reminder_worker
+    envVars:
+      - key: ASSIST_DEFAULT_TIMEZONE
+        value: America/New_York
+      - key: REMINDERS_ENABLED
+        value: "true"
+      - key: REMINDER_POLL_SECONDS
+        value: "15"
+      - key: REMINDER_MAX_ATTEMPTS
+        value: "3"
+      - key: REMINDER_RETRY_DELAY_SECONDS
+        value: "60"
+      - key: REMINDER_PROCESSING_TIMEOUT_SECONDS
+        value: "300"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: market-sms-assistant-db
+          property: connectionString
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+
+databases:
+  - name: market-sms-assistant-db
+    plan: starter

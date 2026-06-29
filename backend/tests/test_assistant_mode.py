@@ -73,6 +73,37 @@ class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(captured["tool_choice"], "required")
 
+    async def test_remind_me_tomorrow_does_not_force_web_search(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            db = Database(config.market_updates_db_path)
+            captured = {}
+
+            async def fake_execute(payload, _db, _phone, _config):
+                captured["tool_choice"] = payload["tool_choice"]
+                return type("R", (), {"text": "Reminder set", "web_search_used": False, "web_search_failed": False})
+
+            with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
+                await generate_assistant_reply(config, db, "+15550001111", "Remind me tomorrow at 9 AM to call my brother", [])
+
+            self.assertIsInstance(captured["tool_choice"], dict)
+            self.assertEqual(captured["tool_choice"]["name"], "schedule_reminder")
+
+    async def test_weather_tomorrow_does_force_web_search(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            db = Database(config.market_updates_db_path)
+            captured = {}
+
+            async def fake_execute(payload, _db, _phone, _config):
+                captured["tool_choice"] = payload["tool_choice"]
+                return type("R", (), {"text": "Forecast...", "web_search_used": True, "web_search_failed": False})
+
+            with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
+                await generate_assistant_reply(config, db, "+15550001111", "What is the weather tomorrow?", [])
+
+            self.assertEqual(captured["tool_choice"], "required")
+
     async def test_stable_question_uses_auto(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             config = _base_config(os.path.join(tmp, "db.sqlite"))
@@ -101,6 +132,19 @@ class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(reply, ASSIST_WEB_SEARCH_FAILURE_REPLY)
 
+    async def test_reminder_function_call_does_not_satisfy_required_web_search_check(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            db = Database(config.market_updates_db_path)
+
+            async def fake_execute(_payload, _db, _phone, _config):
+                return type("R", (), {"text": "Reminder set for tomorrow", "web_search_used": False, "web_search_failed": False})
+
+            with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
+                reply, _ = await generate_assistant_reply(config, db, "+15550001111", "What is the weather tomorrow?", [])
+
+            self.assertEqual(reply, ASSIST_WEB_SEARCH_FAILURE_REPLY)
+
     async def test_search_result_response_can_include_sources(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             config = _base_config(os.path.join(tmp, "db.sqlite"))
@@ -122,6 +166,20 @@ class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIn("weather.gov", reply)
             self.assertIn("https://", reply)
+
+    async def test_web_search_does_not_schedule_reminder(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            db = Database(config.market_updates_db_path)
+
+            async def fake_execute(_payload, _db, _phone, _config):
+                return type("R", (), {"text": "Current weather source: weather.gov", "web_search_used": True, "web_search_failed": False})
+
+            with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
+                await generate_assistant_reply(config, db, "+15550001111", "What is the weather tomorrow?", [])
+
+            reminders = db.list_scheduled_reminders("+15550001111", include_inactive=True)
+            self.assertEqual(reminders, [])
 
 
 class ReminderPersistenceAndWorkerTests(unittest.IsolatedAsyncioTestCase):
@@ -153,6 +211,17 @@ class ReminderPersistenceAndWorkerTests(unittest.IsolatedAsyncioTestCase):
             db2 = Database(path)
             rows = db2.list_scheduled_reminders("+15551112222", include_inactive=True)
             self.assertEqual(len(rows), 1)
+
+    async def test_web_and_worker_processes_see_same_records(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            path = os.path.join(tmp, "db.sqlite")
+            db_web = Database(path)
+            db_worker = Database(path)
+            now = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+            db_web.create_scheduled_reminder("+15551112222", "shared", now, now, "America/New_York", "shared-k")
+
+            worker_view = db_worker.list_scheduled_reminders("+15551112222", include_inactive=True)
+            self.assertEqual(len(worker_view), 1)
 
     async def test_due_reminder_sends_through_twilio(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -242,6 +311,29 @@ class ReminderPersistenceAndWorkerTests(unittest.IsolatedAsyncioTestCase):
                 await process_due_reminders_once(db, config)
 
             send_mock.assert_not_awaited()
+
+    async def test_worker_recovers_stuck_processing(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            db = Database(config.market_updates_db_path)
+            old_claim = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+            past_due = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
+            reminder_id = db.create_scheduled_reminder("+15551112222", "recover me", past_due, past_due, "America/New_York", "k-recover")
+
+            with db.connect() as conn:
+                conn.execute(
+                    "UPDATE market_scheduled_reminders SET status = 'processing', claimed_at = ? WHERE id = ?",
+                    (old_claim, reminder_id),
+                )
+
+            with patch(
+                "market_updates.reminder_worker.send_sms_with_result",
+                new=AsyncMock(return_value={"ok": True, "error_type": "none", "error": ""}),
+            ) as send_mock:
+                out = await process_due_reminders_once(db, config)
+
+            self.assertEqual(out["sent"], 1)
+            self.assertEqual(send_mock.await_count, 1)
 
     async def test_conversation_expiration_does_not_delete_reminders(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
