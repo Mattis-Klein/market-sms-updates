@@ -29,6 +29,9 @@ Market SMS Assistant provides fast, text-first access to market and utility work
 - Direct ticker input is supported for quick quote responses.
 - Symbol discovery is available through `SYMBOL <query>` and `TICKERS`.
 - `@assist` starts a per-phone conversational assistant mode with configurable session expiry.
+- While assistant mode is active, normal app keywords are treated as assistant conversation.
+- Assistant mode exits only via exact commands `@exit` or `@assist off`.
+- Assistant uses Responses API web search for current/live requests and can schedule persistent reminders naturally.
 
 ## Deployment Context
 
@@ -38,6 +41,7 @@ Market SMS Assistant provides fast, text-first access to market and utility work
 ## Persistence
 
 - SQLite database controlled by `MARKET_UPDATES_DB_PATH`.
+- Persistent reminder records are stored separately from assistant conversation session state.
 
 ## Security Posture
 

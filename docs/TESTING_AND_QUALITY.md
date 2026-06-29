@@ -24,7 +24,11 @@ cd backend
 - assistant mode entry, active conversation routing, and exits
 - assistant session expiration and per-phone isolation
 - assistant image-request blocking and explicit-content refusal
-- assistant web-search success/failure handling
+- assistant forced web-search behavior for current-information prompts
+- assistant search-failure safe response behavior
+- assistant-mode routing precedence over normal keyword handlers while active
+- natural-language reminder scheduling persistence, worker delivery, retry, and duplicate prevention
+- reminder ownership boundaries (users cannot manage reminders owned by other numbers)
 
 ## Test Philosophy
 

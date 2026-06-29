@@ -33,11 +33,12 @@ Date: 2026-06-28
 ### AI Assistant Mode (`@assist`)
 - New `@assist` keyword starts a full AI assistant conversation per phone number.
 - Assistant mode stores isolated conversation context per sender in `market_assistant_sessions`.
-- Assistant mode exits on `EXIT`, `EXIT ASSIST`, `MENU`, `MAIN MENU` with explicit close reply.
+- Assistant mode exits only on exact commands `@exit` and `@assist off` with explicit close reply.
 - Assistant session expiration is configurable (default 45 minutes inactivity).
 - Assistant includes safety controls for explicit sexual content and dangerous/criminal requests.
 - Image generation/edit requests return a fixed non-image fallback and do not call any image tool.
-- Web search integration added with provider/key/timeouts/max-result controls and URL safety filtering.
+- OpenAI Responses API with `web_search` tool is used for live/current-information requests.
+- Current-information prompts force tool usage when configured (`ASSIST_FORCE_WEB_FOR_CURRENT_INFO=true`).
 - Assistant applies SMS-first response shaping and continuation options when responses are long.
 - **NEW:** Primary and fallback OpenAI API key support with intelligent error detection.
   - Primary key always attempted first with exponential backoff retry (2-3 attempts).
@@ -45,6 +46,13 @@ Date: 2026-06-28
   - Fallback NOT used on non-transient errors: content policy, invalid params, unsupported models, malformed data.
   - Both keys never exposed in logs or user responses.
   - Both provider failure returns safe SMS fallback message to user.
+
+### Persistent Assistant Reminders
+- Assistant can schedule reminders from natural language requests in conversation mode.
+- Reminder records are persisted in `market_scheduled_reminders` with delivery lifecycle statuses.
+- Reminder worker performs atomic claim/send/retry to prevent duplicate delivery.
+- Temporary Twilio failures retry with bounded attempts; permanent failures stop retrying.
+- Reminder data persists across restarts/deploys and is separate from assistant conversation expiration.
 ### BEAST Utility
 - `BEAST` and `@mrbeast` alias support.
 - livecounts stats API primary source with fallback parser.

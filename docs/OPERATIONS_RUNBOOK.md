@@ -32,13 +32,19 @@ Assistant mode:
 - `OPENAI_MODEL` (default: `gpt-4o-mini`): OpenAI model
 - `ASSISTANT_AI_BASE_URL` (default: OpenAI endpoint)
 - `ASSISTANT_AI_TIMEOUT_SECONDS` (default: `20`)
-- `ASSISTANT_SEARCH_PROVIDER` (default: `tavily`)
-- `ASSISTANT_SEARCH_API_KEY` (required): Search provider API key
-- `ASSISTANT_SEARCH_TIMEOUT_SECONDS` (default: `8`)
-- `ASSISTANT_SEARCH_MAX_RESULTS` (default: `4`)
+- `ASSIST_DEFAULT_TIMEZONE` (default: `America/New_York`)
+- `ASSIST_FORCE_WEB_FOR_CURRENT_INFO` (default: `true`)
 - `ASSISTANT_SESSION_EXPIRATION_MINUTES` (default: `45`)
 - `ASSISTANT_MAX_HISTORY_MESSAGES` (default: `12`)
 - `ASSISTANT_SMS_MAX_CHARS` (default: `1200`)
+
+Persistent reminders:
+- `REMINDERS_ENABLED` (default: `true`)
+- `REMINDER_POLL_SECONDS` (default: `15`)
+- `REMINDER_MAX_ATTEMPTS` (default: `3`)
+- `REMINDER_RETRY_DELAY_SECONDS` (default: `60`)
+- `REMINDER_PROCESSING_TIMEOUT_SECONDS` (default: `300`)
+- `DATABASE_URL` (optional for shared DB deployments)
 ## Startup Sequence
 
 1. Start backend API.
@@ -55,8 +61,10 @@ Assistant mode:
 - Direct ticker like `$AAPL?` returns quote.
 - `BEAST` and `@mrbeast` return subscriber count or fallback message.
 - `@assist` returns: `How can I assist you today?`
-- `@assist` then `What is the weather right now?` returns assistant reply (and search failure notice if web search unavailable).
-- `menu` while in assistant mode returns close message: `Assistant mode closed. Reply MENU to see available options.`
+- `@assist` then `What is the weather right now?` forces Responses API web search and returns either current sourced result or: `I couldn't access live information right now. Please try again shortly.`
+- `menu` while in assistant mode is handled by AI (does not exit assistant mode).
+- `@exit` exits assistant mode and returns close message.
+- `@assist` then `Remind me in half an hour to call my brother` should return a scheduled confirmation with resolved time.
 
 ## Troubleshooting
 
@@ -104,6 +112,13 @@ Primary key failure does NOT use fallback for:
 
 Failure message to user:
 > The AI assistant is temporarily unavailable. Please try again shortly or reply MENU to return to the main menu.
+
+### Reminder worker deployment notes
+
+- Preferred production architecture: web service for inbound SMS + dedicated background worker for reminders + shared persistent database.
+- If using only SQLite attached to a single persistent disk, run worker in the same always-on service instance or co-locate service/worker with shared storage.
+- Start dedicated worker with: `python -m market_updates.reminder_worker`.
+- Optional in-web worker toggle: `REMINDERS_RUN_IN_WEB=true` (single always-running instance only).
 
 ## Database Notes
 

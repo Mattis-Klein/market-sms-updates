@@ -8,7 +8,7 @@ Path: backend/app/main.py
 Core module: backend/market_updates
 
 - keyword_handlers.py: primary SMS routing, session transitions, command orchestration, and assistant-mode priority handling.
-- assistant_mode.py: AI assistant policy, web-search integration, SMS response shaping, safety/refusal logic, and dual OpenAI provider fallback handling.
+- assistant_mode.py: AI assistant policy, OpenAI Responses API integration, forced `web_search` for current-information queries, strict reminder tools, SMS response shaping, and dual OpenAI provider fallback handling.
 - keywords.py: text normalization, direct-symbol parsing, symbol lookup catalog.
 - profiles.py: user-profile assignment and per-profile keyword policy.
 - lottery.py: Powerball data fetch, normalization, and in-memory TTL caching.
@@ -16,7 +16,9 @@ Core module: backend/market_updates
 - youtube_service.py: livecounts stats API + fallback parsing for BEAST subscriber checks.
 - allowlist.py: allowlist matching, invite request lifecycle, permanent env allowlist parsing.
 - notifications.py: reminder CRUD, state updates, and list summaries.
-- notification_runner.py: due notification evaluation and outbound send execution.
+- notification_runner.py: legacy market notification batch evaluator.
+- reminder_worker.py: persistent reminder delivery worker with atomic claim/send/retry lifecycle.
+- reminders.py: natural language reminder time parsing and reminder scheduling helpers.
 - feedback_store.py: feedback storage and portal-forward behavior.
 - sms_sender.py: Twilio outbound helper.
 - webhook_api.py: Twilio webhook entry route.
@@ -26,6 +28,7 @@ Storage:
 - SQLite at MARKET_UPDATES_DB_PATH.
 - Reminder workflow sessions in `market_sms_sessions`.
 - Assistant mode state and conversation history in `market_assistant_sessions` keyed by phone number.
+- Persistent assistant reminders in `market_scheduled_reminders` with statuses: pending, processing, sent, failed, cancelled.
 
 Permanent env allowlist:
 - MARKET_UPDATES_ALLOWED_NUMBERS is parsed as a comma-separated number list.
@@ -59,8 +62,9 @@ OpenAI API Redundancy:
 3. Handler applies carrier compliance keyword routing (`STOP/START/HELP`) first.
 4. Handler applies approver/admin routing.
 5. Handler applies allowlist/profile checks.
-6. Handler applies dedicated keyword routing and active reminder-session flow.
-7. Handler applies active `@assist` conversation flow when no higher-priority route matches.
+6. Handler applies exact assistant exit commands (`@exit`, `@assist off`).
+7. Handler applies active `@assist` conversation flow before app keywords/workflows.
+8. Handler applies existing workflow/keyword routing when assistant mode is not active.
 8. TwiML response is returned synchronously.
 
 ## Command Routing Notes
@@ -72,7 +76,18 @@ OpenAI API Redundancy:
 - `@assist` starts or restarts assistant mode for that phone number.
 - Assistant mode exits on `EXIT`, `EXIT ASSIST`, `MENU`, or `MAIN MENU`.
 - Assistant sessions expire after a configurable inactivity window.
-- Dedicated app keywords still take precedence over active assistant conversation state.
+- Active assistant conversation state takes precedence over normal app keywords.
+- Reserved assistant exit commands are exact-only: `@exit` and `@assist off`.
+- Carrier compliance commands always override assistant mode.
+
+## Reminder Delivery
+
+- Reminder records are persisted before confirmation is sent to the user.
+- Worker loop polls due reminders from persistent storage.
+- Each reminder is atomically claimed (`pending` -> `processing`) before delivery.
+- Twilio success marks `sent`; temporary failures are retried; permanent failures are marked `failed`.
+- Stuck `processing` reminders are recovered back to `pending` after timeout.
+- Outbound reminder texts are sent directly via Twilio sender and are not routed back through inbound keyword handling.
 
 ## Frontend Admin
 

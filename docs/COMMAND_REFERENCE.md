@@ -75,18 +75,21 @@ Start:
 - Reply: `How can I assist you today?`
 
 While active:
-- Non-keyword messages route to assistant conversation mode with per-phone memory.
-- Dedicated app keywords still route to their dedicated handlers first.
-- If web search is unavailable during a web-needed query, assistant returns a live-search failure notice and a general fallback answer.
+- All normal app keywords/messages route to assistant conversation mode for that phone number.
+- Current-information queries force OpenAI Responses API web search tool usage.
+- Natural reminder requests can schedule reminders directly in assistant mode.
+- Reminder management requests are supported in assistant mode (list/cancel/update/delete-all with confirmation).
 
 Exit commands:
-- `EXIT`
-- `EXIT ASSIST`
-- `MENU`
-- `MAIN MENU`
+- `@exit`
+- `@assist off`
 
 Exit reply:
-- `Assistant mode closed. Reply MENU to see available options.`
+- `Assistant mode closed. Reply MENU to see the main menu.`
+
+Reserved behavior while active:
+- `menu`, `help`, `back`, `cancel`, `exit` are treated as assistant conversation text (not mode exit).
+- Carrier/Twilio compliance commands (`STOP`, `START`, `UNSTOP`) still run first.
 
 ## Access and Invite Behavior
 

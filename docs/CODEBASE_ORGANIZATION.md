@@ -42,8 +42,10 @@ Date: 2026-06-28
 - Market data retrieval: `market_data.py`
 - Subscriber utility (BEAST): `youtube_service.py`
 - Access and invite controls: `allowlist.py`
-- Reminder persistence and state: `notifications.py`
-- Reminder execution job: `notification_runner.py`
+- Legacy notification persistence and state: `notifications.py`
+- Assistant reminder parsing/scheduling helpers: `reminders.py`
+- Persistent reminder worker loop: `reminder_worker.py`
+- Legacy notification execution job: `notification_runner.py`
 - Feedback pipeline: `feedback_store.py`
 - Admin routes: `admin_api.py`
 - Webhook route: `webhook_api.py`

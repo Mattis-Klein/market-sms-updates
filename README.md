@@ -44,7 +44,7 @@ Command groups:
 - Subscriber utility: `BEAST`, `@mrbeast`
 - Reminders: `REMIND`, `LIST`, `CANCELREMINDER <index>`
 - Feedback: `FEEDBACK <message>`
-- AI assistant mode: `@assist` (exit with `EXIT`, `EXIT ASSIST`, `MENU`, or `MAIN MENU`)
+- AI assistant mode: `@assist` (exit only with `@exit` or `@assist off`)
 
 Profile-specific behavior:
 - `powerball_only` profile exists for `+17184733934`.
@@ -86,13 +86,23 @@ Assistant mode environment:
 - `OPENAI_MODEL` (default: `gpt-4o-mini`): OpenAI model to use
 - `ASSISTANT_AI_BASE_URL` (default: `https://api.openai.com/v1`): OpenAI API endpoint
 - `ASSISTANT_AI_TIMEOUT_SECONDS` (default: `20`): Request timeout for AI API calls
-- `ASSISTANT_SEARCH_PROVIDER` (default: `tavily`): Web search provider for live context
-- `ASSISTANT_SEARCH_API_KEY` (required): API key for web search provider
-- `ASSISTANT_SEARCH_TIMEOUT_SECONDS` (default: `8`): Request timeout for search API
-- `ASSISTANT_SEARCH_MAX_RESULTS` (default: `4`): Maximum web search results to include
+- `ASSIST_DEFAULT_TIMEZONE` (default: `America/New_York`): Timezone used for relative assistant/reminder time resolution
+- `ASSIST_FORCE_WEB_FOR_CURRENT_INFO` (default: `true`): Force `web_search` tool for current/live queries
 - `ASSISTANT_SESSION_EXPIRATION_MINUTES` (default: `45`): How long to keep assistant session active
 - `ASSISTANT_MAX_HISTORY_MESSAGES` (default: `12`): Max conversation history messages to retain
 - `ASSISTANT_SMS_MAX_CHARS` (default: `1200`): Max characters for SMS responses
+
+Persistent reminders environment:
+- `REMINDERS_ENABLED` (default: `true`)
+- `REMINDER_POLL_SECONDS` (default: `15`)
+- `REMINDER_MAX_ATTEMPTS` (default: `3`)
+- `REMINDER_RETRY_DELAY_SECONDS` (default: `60`)
+- `REMINDER_PROCESSING_TIMEOUT_SECONDS` (default: `300`)
+- `DATABASE_URL` (optional): shared DB URL for multi-service deployment
+
+Worker execution:
+- Dedicated worker process: `python -m market_updates.reminder_worker`
+- Optional in-web worker (single persistent instance only): set `REMINDERS_RUN_IN_WEB=true`
 
 ## Admin API Auth
 

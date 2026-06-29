@@ -66,6 +66,32 @@ CREATE TABLE IF NOT EXISTS market_assistant_sessions (
     assistant_conversation_history TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS market_scheduled_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone_number TEXT NOT NULL,
+    reminder_text TEXT NOT NULL,
+    scheduled_at_utc TEXT NOT NULL,
+    scheduled_at_local TEXT NOT NULL,
+    timezone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    sent_at TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    deduplication_key TEXT,
+    claimed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_scheduled_reminders_due
+ON market_scheduled_reminders (status, scheduled_at_utc);
+
+CREATE INDEX IF NOT EXISTS idx_market_scheduled_reminders_phone
+ON market_scheduled_reminders (phone_number, status, scheduled_at_utc);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_scheduled_reminders_dedup
+ON market_scheduled_reminders (phone_number, deduplication_key)
+WHERE deduplication_key IS NOT NULL;
 """
 
 
@@ -226,3 +252,239 @@ class Database:
             return None
 
         return session
+
+    def create_scheduled_reminder(
+        self,
+        phone_number: str,
+        reminder_text: str,
+        scheduled_at_utc: str,
+        scheduled_at_local: str,
+        timezone_name: str,
+        deduplication_key: str | None = None,
+    ) -> int:
+        with self.connect() as conn:
+            if deduplication_key:
+                existing = conn.execute(
+                    """
+                    SELECT id FROM market_scheduled_reminders
+                    WHERE phone_number = ? AND deduplication_key = ?
+                    LIMIT 1
+                    """,
+                    (phone_number, deduplication_key),
+                ).fetchone()
+                if existing:
+                    return int(existing["id"])
+
+            cur = conn.execute(
+                """
+                INSERT INTO market_scheduled_reminders (
+                    phone_number, reminder_text, scheduled_at_utc, scheduled_at_local,
+                    timezone, status, created_at, deduplication_key
+                )
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+                """,
+                (
+                    phone_number,
+                    reminder_text,
+                    scheduled_at_utc,
+                    scheduled_at_local,
+                    timezone_name,
+                    utc_now(),
+                    deduplication_key,
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def list_scheduled_reminders(self, phone_number: str, include_inactive: bool = False) -> list[dict]:
+        with self.connect() as conn:
+            if include_inactive:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM market_scheduled_reminders
+                    WHERE phone_number = ?
+                    ORDER BY scheduled_at_utc ASC, id ASC
+                    """,
+                    (phone_number,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM market_scheduled_reminders
+                    WHERE phone_number = ? AND status IN ('pending', 'processing')
+                    ORDER BY scheduled_at_utc ASC, id ASC
+                    """,
+                    (phone_number,),
+                ).fetchall()
+        return [dict(row) for row in rows]
+
+    def cancel_scheduled_reminder(self, phone_number: str, reminder_id: int) -> bool:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE market_scheduled_reminders
+                SET status = 'cancelled', last_error = NULL
+                WHERE id = ? AND phone_number = ? AND status IN ('pending', 'processing')
+                """,
+                (reminder_id, phone_number),
+            )
+            return cur.rowcount > 0
+
+    def cancel_scheduled_reminders_by_text(self, phone_number: str, text_fragment: str) -> int:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE market_scheduled_reminders
+                SET status = 'cancelled', last_error = NULL
+                WHERE phone_number = ? AND status IN ('pending', 'processing')
+                  AND lower(reminder_text) LIKE ?
+                """,
+                (phone_number, f"%{text_fragment.lower()}%"),
+            )
+            return cur.rowcount
+
+    def cancel_all_scheduled_reminders(self, phone_number: str) -> int:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE market_scheduled_reminders
+                SET status = 'cancelled', last_error = NULL
+                WHERE phone_number = ? AND status IN ('pending', 'processing')
+                """,
+                (phone_number,),
+            )
+            return cur.rowcount
+
+    def update_scheduled_reminder(
+        self,
+        phone_number: str,
+        reminder_id: int,
+        reminder_text: str,
+        scheduled_at_utc: str,
+        scheduled_at_local: str,
+        timezone_name: str,
+    ) -> bool:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE market_scheduled_reminders
+                SET reminder_text = ?,
+                    scheduled_at_utc = ?,
+                    scheduled_at_local = ?,
+                    timezone = ?,
+                    status = 'pending',
+                    claimed_at = NULL,
+                    sent_at = NULL,
+                    last_error = NULL
+                WHERE id = ? AND phone_number = ? AND status IN ('pending', 'processing')
+                """,
+                (
+                    reminder_text,
+                    scheduled_at_utc,
+                    scheduled_at_local,
+                    timezone_name,
+                    reminder_id,
+                    phone_number,
+                ),
+            )
+            return cur.rowcount > 0
+
+    def recover_stuck_processing_reminders(self, timeout_seconds: int) -> int:
+        with self.connect() as conn:
+            cutoff = datetime.now(timezone.utc).timestamp() - max(timeout_seconds, 30)
+            rows = conn.execute(
+                """
+                SELECT id, claimed_at FROM market_scheduled_reminders
+                WHERE status = 'processing' AND claimed_at IS NOT NULL
+                """
+            ).fetchall()
+            recover_ids: list[int] = []
+            for row in rows:
+                claimed_at = row["claimed_at"]
+                try:
+                    claimed_ts = datetime.fromisoformat(claimed_at).timestamp()
+                except (TypeError, ValueError):
+                    claimed_ts = 0
+                if claimed_ts <= cutoff:
+                    recover_ids.append(int(row["id"]))
+
+            if not recover_ids:
+                return 0
+
+            conn.executemany(
+                """
+                UPDATE market_scheduled_reminders
+                SET status = 'pending', claimed_at = NULL
+                WHERE id = ? AND status = 'processing'
+                """,
+                [(reminder_id,) for reminder_id in recover_ids],
+            )
+            return len(recover_ids)
+
+    def claim_due_scheduled_reminders(self, now_utc: str, limit: int = 50) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id FROM market_scheduled_reminders
+                WHERE status = 'pending' AND scheduled_at_utc <= ?
+                ORDER BY scheduled_at_utc ASC, id ASC
+                LIMIT ?
+                """,
+                (now_utc, max(1, limit)),
+            ).fetchall()
+
+            claimed: list[int] = []
+            for row in rows:
+                reminder_id = int(row["id"])
+                cur = conn.execute(
+                    """
+                    UPDATE market_scheduled_reminders
+                    SET status = 'processing', claimed_at = ?
+                    WHERE id = ? AND status = 'pending'
+                    """,
+                    (utc_now(), reminder_id),
+                )
+                if cur.rowcount > 0:
+                    claimed.append(reminder_id)
+
+            if not claimed:
+                return []
+
+            placeholders = ",".join("?" for _ in claimed)
+            claimed_rows = conn.execute(
+                f"SELECT * FROM market_scheduled_reminders WHERE id IN ({placeholders}) ORDER BY scheduled_at_utc ASC, id ASC",
+                tuple(claimed),
+            ).fetchall()
+            return [dict(row) for row in claimed_rows]
+
+    def mark_scheduled_reminder_sent(self, reminder_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE market_scheduled_reminders
+                SET status = 'sent', sent_at = ?, claimed_at = NULL, attempt_count = attempt_count + 1, last_error = NULL
+                WHERE id = ?
+                """,
+                (utc_now(), reminder_id),
+            )
+
+    def mark_scheduled_reminder_retry(self, reminder_id: int, error_text: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE market_scheduled_reminders
+                SET status = 'pending', claimed_at = NULL, attempt_count = attempt_count + 1, last_error = ?
+                WHERE id = ?
+                """,
+                (error_text[:500], reminder_id),
+            )
+
+    def mark_scheduled_reminder_failed(self, reminder_id: int, error_text: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE market_scheduled_reminders
+                SET status = 'failed', claimed_at = NULL, attempt_count = attempt_count + 1, last_error = ?
+                WHERE id = ?
+                """,
+                (error_text[:500], reminder_id),
+            )

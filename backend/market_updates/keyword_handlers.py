@@ -193,10 +193,29 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
 
     active_assistant_session = db.get_active_assistant_session(sender, config.assistant_session_expiration_minutes)
 
-    if active_assistant_session and is_assist_exit_command(normalized):
-        db.deactivate_assistant_session(sender)
-        logger.info("assistant_mode_closed", extra={"phone": sender[-4:]})
-        return _twiml_message(ASSIST_EXIT_REPLY)
+    # Assistant mode routing is evaluated before all app keywords and workflows.
+    if active_assistant_session:
+        if is_assist_exit_command(normalized):
+            db.deactivate_assistant_session(sender)
+            logger.info("assistant_mode_closed", extra={"phone": sender[-4:]})
+            return _twiml_message(ASSIST_EXIT_REPLY)
+
+        response, new_history = await generate_assistant_reply(
+            config=config,
+            db=db,
+            phone_number=sender,
+            user_message=incoming,
+            history=active_assistant_session.get("assistant_conversation_history", []),
+        )
+        now = assistant_now()
+        db.upsert_assistant_session(
+            phone_number=sender,
+            assistant_mode_active=True,
+            assistant_started_at=active_assistant_session.get("assistant_started_at") or now,
+            assistant_last_activity_at=now,
+            assistant_conversation_history=new_history,
+        )
+        return _twiml_message(response)
 
     if session and session["state"] == "await_remind_type" and normalized in REMINDER_MENU_NUMBER_MAP:
         direct_symbol = None
@@ -324,23 +343,6 @@ async def handle_inbound_sms(db: Database, config: MarketConfig, from_number: st
     action = parse_list_action(normalized)
     if action:
         return _twiml_message(_apply_notification_action(db, sender, action["action"], action["index"]))
-
-    if active_assistant_session:
-        response, new_history = await generate_assistant_reply(
-            config=config,
-            phone_number=sender,
-            user_message=incoming,
-            history=active_assistant_session.get("assistant_conversation_history", []),
-        )
-        now = assistant_now()
-        db.upsert_assistant_session(
-            phone_number=sender,
-            assistant_mode_active=True,
-            assistant_started_at=active_assistant_session.get("assistant_started_at") or now,
-            assistant_last_activity_at=now,
-            assistant_conversation_history=new_history,
-        )
-        return _twiml_message(response)
 
     return _twiml_message("Unknown command. Send MENU.")
 

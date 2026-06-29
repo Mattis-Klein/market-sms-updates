@@ -22,6 +22,8 @@ class MarketConfig:
     openai_model: str = "gpt-4o-mini"
     assistant_ai_base_url: str = "https://api.openai.com/v1"
     assistant_ai_timeout_seconds: int = 20
+    assist_default_timezone: str = "America/New_York"
+    assist_force_web_for_current_info: bool = True
     assistant_search_provider: str = "tavily"
     assistant_search_api_key: str = ""
     assistant_search_timeout_seconds: int = 8
@@ -29,6 +31,12 @@ class MarketConfig:
     assistant_session_expiration_minutes: int = 45
     assistant_max_history_messages: int = 12
     assistant_sms_max_chars: int = 1200
+    reminders_enabled: bool = True
+    reminder_poll_seconds: int = 15
+    reminder_max_attempts: int = 3
+    reminder_retry_delay_seconds: int = 60
+    reminder_processing_timeout_seconds: int = 300
+    database_url: str = ""
 
 
 def load_config() -> MarketConfig:
@@ -48,6 +56,8 @@ def load_config() -> MarketConfig:
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         assistant_ai_base_url=os.getenv("ASSISTANT_AI_BASE_URL", "https://api.openai.com/v1"),
         assistant_ai_timeout_seconds=int(os.getenv("ASSISTANT_AI_TIMEOUT_SECONDS", "20")),
+        assist_default_timezone=os.getenv("ASSIST_DEFAULT_TIMEZONE", "America/New_York"),
+        assist_force_web_for_current_info=os.getenv("ASSIST_FORCE_WEB_FOR_CURRENT_INFO", "true").lower() == "true",
         assistant_search_provider=os.getenv("ASSISTANT_SEARCH_PROVIDER", "tavily"),
         assistant_search_api_key=os.getenv("ASSISTANT_SEARCH_API_KEY", ""),
         assistant_search_timeout_seconds=int(os.getenv("ASSISTANT_SEARCH_TIMEOUT_SECONDS", "8")),
@@ -55,6 +65,12 @@ def load_config() -> MarketConfig:
         assistant_session_expiration_minutes=int(os.getenv("ASSISTANT_SESSION_EXPIRATION_MINUTES", "45")),
         assistant_max_history_messages=int(os.getenv("ASSISTANT_MAX_HISTORY_MESSAGES", "12")),
         assistant_sms_max_chars=int(os.getenv("ASSISTANT_SMS_MAX_CHARS", "1200")),
+        reminders_enabled=os.getenv("REMINDERS_ENABLED", "true").lower() == "true",
+        reminder_poll_seconds=int(os.getenv("REMINDER_POLL_SECONDS", "15")),
+        reminder_max_attempts=int(os.getenv("REMINDER_MAX_ATTEMPTS", "3")),
+        reminder_retry_delay_seconds=int(os.getenv("REMINDER_RETRY_DELAY_SECONDS", "60")),
+        reminder_processing_timeout_seconds=int(os.getenv("REMINDER_PROCESSING_TIMEOUT_SECONDS", "300")),
+        database_url=os.getenv("DATABASE_URL", ""),
     )
 
 
