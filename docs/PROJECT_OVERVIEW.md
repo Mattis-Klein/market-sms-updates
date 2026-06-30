@@ -1,6 +1,6 @@
 # Project Overview
 
-Date: 2026-06-29
+Date: 2026-06-30
 
 ## Product Goal
 
@@ -36,7 +36,11 @@ Market SMS Assistant provides fast, text-first access to market and utility work
 ## Deployment Context
 
 - Primary host: `https://yeshivachill.com`
-- Primary inbound webhook: `/api/market-updates/sms`
+- Primary inbound webhook: `POST https://yeshivachill.com/api/market-updates/sms`
+- DNS is managed in Namecheap and targets Render service host `market-sms-updates.onrender.com`.
+- `www.yeshivachill.com` redirects to `yeshivachill.com`.
+- Render-managed TLS certificates are active on both custom domains.
+- Render direct URL remains available for troubleshooting: `https://market-sms-updates.onrender.com`.
 
 ## Persistence
 

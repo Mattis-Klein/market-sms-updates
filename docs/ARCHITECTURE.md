@@ -109,6 +109,18 @@ Health endpoints:
 - Shared PostgreSQL: both processes use the same reminder/session tables through `DATABASE_URL`.
 - Render Blueprint (`render.yaml`) defines web service, worker service, and shared PostgreSQL resource.
 
+## Production Domain and DNS
+
+- Public production base domain: `https://yeshivachill.com`.
+- Production inbound Twilio SMS webhook: `POST https://yeshivachill.com/api/market-updates/sms`.
+- DNS is managed in Namecheap and points to Render service host `market-sms-updates.onrender.com`.
+- Configured DNS records:
+	- `ALIAS @ -> market-sms-updates.onrender.com`.
+	- `CNAME www -> market-sms-updates.onrender.com`.
+- TLS/SSL certificates are managed and issued automatically by Render for both configured custom domains.
+- `www.yeshivachill.com` redirects to `yeshivachill.com`.
+- Render direct service URL remains enabled for troubleshooting: `https://market-sms-updates.onrender.com`.
+
 ## Frontend Admin
 
 Path: frontend/market-admin

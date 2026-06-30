@@ -50,13 +50,32 @@ Render/production topology:
 - web service: inbound Twilio webhook and API
 - worker service: `python -m market_updates.reminder_worker`
 - shared managed PostgreSQL: single persistence layer for web + worker
+## Production Domain and Webhook (Completed 2026-06-30)
+
+Production public domain:
+- `https://yeshivachill.com`
+
+Production Twilio inbound webhook:
+- `POST https://yeshivachill.com/api/market-updates/sms`
+
+Namecheap DNS (active):
+- `ALIAS @ -> market-sms-updates.onrender.com` (TTL: 5 min)
+- `CNAME www -> market-sms-updates.onrender.com` (TTL: Automatic)
+
+Render custom-domain state:
+- `yeshivachill.com` verified with certificate issued.
+- `www.yeshivachill.com` verified with certificate issued.
+- HTTPS active for both domains.
+- `www.yeshivachill.com` redirects to `yeshivachill.com`.
+- Render service subdomain remains available: `https://market-sms-updates.onrender.com`.
+
 ## Startup Sequence
 
 1. Start backend API.
-2. Confirm `/health` responds with `{ "ok": true }`.
-3. Confirm `/health/ready` responds with HTTP 200 and dependency checks passing.
-3. Verify Twilio webhook points to `/api/market-updates/sms`.
-4. Send test SMS: `MENU`.
+2. Confirm `https://yeshivachill.com/health` responds with HTTP 200.
+3. Confirm `https://yeshivachill.com/health/ready` responds with HTTP 200 and dependency checks passing.
+4. Verify Twilio webhook is `POST https://yeshivachill.com/api/market-updates/sms`.
+5. Send test SMS keyword: `MENU`.
 
 ## SQLite -> PostgreSQL Migration Sequence
 
@@ -79,6 +98,8 @@ Safety notes:
 
 ## Post-Deploy Smoke Tests
 
+- `https://yeshivachill.com/health` returns HTTP 200.
+- `https://yeshivachill.com/health/ready` returns HTTP 200 and dependency checks.
 - `MENU` returns numbered guidance list.
 - `3` returns symbol lookup instructions.
 - `SYMBOL S&P` includes `^GSPC`.
@@ -165,16 +186,16 @@ Set these thresholds in production monitoring so SMS incidents are detected with
 Check in order:
 1. Twilio webhook URL and HTTP status.
 2. Backend process health and readiness:
-	- `/health` should return 200.
-	- `/health/ready` should return 200 and show `twilio_configured=true`, `database_connectivity=true`.
+	- `https://yeshivachill.com/health` should return HTTP 200.
+	- `https://yeshivachill.com/health/ready` should return HTTP 200 and show `twilio_configured=true`, `database_connectivity=true`.
 3. Backend logs for inbound pipeline events:
 	- `inbound_sms_received`
 	- `inbound_sms_replied`
 	- `inbound_sms_handler_failed`
 	- `inbound_sms_fallback_replied`
-3. Allowlist status for sender number.
-4. Whether sender is stuck in a reminder session (commands should still bypass now).
-5. If issue is assistant mode only, verify AI/search API keys and timeout settings.
+4. Allowlist status for sender number.
+5. Whether sender is stuck in a reminder session (commands should still bypass now).
+6. If issue is assistant mode only, verify AI/search API keys and timeout settings.
 
 Incident triage interpretation:
 - Twilio shows request timeout and app has no `inbound_sms_received` log: request never reached app (DNS/TLS/network or routing issue).
