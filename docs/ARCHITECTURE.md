@@ -70,6 +70,16 @@ OpenAI API Redundancy:
 8. Handler applies existing workflow/keyword routing when assistant mode is not active.
 8. TwiML response is returned synchronously.
 
+Observability:
+- Inbound webhook logs include `inbound_sms_received`, `inbound_sms_replied`, and fallback/error events.
+- Each event includes masked sender/message identifiers and elapsed request time for incident triage.
+
+Health endpoints:
+- `/health`: liveness probe (`{ "ok": true }`).
+- `/health/ready`: readiness probe validating critical SMS dependencies:
+	- Twilio credentials present,
+	- database connectivity check passes.
+
 ## Command Routing Notes
 
 - Top-level numeric replies map to guidance prompts after MENU.

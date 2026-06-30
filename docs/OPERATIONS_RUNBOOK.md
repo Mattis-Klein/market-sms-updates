@@ -54,6 +54,7 @@ Render/production topology:
 
 1. Start backend API.
 2. Confirm `/health` responds with `{ "ok": true }`.
+3. Confirm `/health/ready` responds with HTTP 200 and dependency checks passing.
 3. Verify Twilio webhook points to `/api/market-updates/sms`.
 4. Send test SMS: `MENU`.
 
@@ -104,10 +105,23 @@ Do not declare production-ready until this has been observed in the deployed env
 
 Check in order:
 1. Twilio webhook URL and HTTP status.
-2. Backend process health and logs.
+2. Backend process health and readiness:
+	- `/health` should return 200.
+	- `/health/ready` should return 200 and show `twilio_configured=true`, `database_connectivity=true`.
+3. Backend logs for inbound pipeline events:
+	- `inbound_sms_received`
+	- `inbound_sms_replied`
+	- `inbound_sms_handler_failed`
+	- `inbound_sms_fallback_replied`
 3. Allowlist status for sender number.
 4. Whether sender is stuck in a reminder session (commands should still bypass now).
 5. If issue is assistant mode only, verify AI/search API keys and timeout settings.
+
+Incident triage interpretation:
+- Twilio shows request timeout and app has no `inbound_sms_received` log: request never reached app (DNS/TLS/network or routing issue).
+- `inbound_sms_received` exists but no `inbound_sms_replied`: request hung inside handler path.
+- `inbound_sms_handler_failed` + `inbound_sms_fallback_replied`: handler raised, but user should still receive fallback SMS response.
+- `/health` is 200 but `/health/ready` is 503: app is up but dependencies/config are not production-ready.
 
 ### BEAST failures
 

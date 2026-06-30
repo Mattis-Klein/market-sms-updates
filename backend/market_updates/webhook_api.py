@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi import APIRouter, Form, Response
 
@@ -29,9 +30,34 @@ async def inbound_sms(
     MessageSid: str = Form(default=""),
 ):
     sid = (MessageSid or "")[-8:]
+    start = time.monotonic()
+    logger.info(
+        "inbound_sms_received",
+        extra={
+            "from_suffix": (From or "")[-4:],
+            "sid_suffix": sid,
+            "body_chars": len(Body or ""),
+        },
+    )
     try:
         twiml = await handle_inbound_sms(db, config, From, Body)
+        logger.info(
+            "inbound_sms_replied",
+            extra={
+                "from_suffix": (From or "")[-4:],
+                "sid_suffix": sid,
+                "elapsed_ms": int((time.monotonic() - start) * 1000),
+            },
+        )
     except Exception:
         logger.exception("inbound_sms_handler_failed", extra={"from_suffix": (From or "")[-4:], "sid_suffix": sid})
         twiml = _twiml_message("Service is temporarily unavailable. Please try again shortly.")
+        logger.info(
+            "inbound_sms_fallback_replied",
+            extra={
+                "from_suffix": (From or "")[-4:],
+                "sid_suffix": sid,
+                "elapsed_ms": int((time.monotonic() - start) * 1000),
+            },
+        )
     return Response(content=twiml, media_type="application/xml")

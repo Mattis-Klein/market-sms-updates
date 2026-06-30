@@ -7,6 +7,8 @@ Date: 2026-06-29
 ### Inbound SMS and Command System
 - Twilio webhook endpoint at `/api/market-updates/sms`.
 - Webhook now includes server-side exception fallback to always return valid TwiML (prevents silent no-reply behavior on unexpected handler failures).
+- Inbound webhook telemetry now logs receive/reply/fallback timing events for rapid incident diagnosis.
+- Readiness endpoint `/health/ready` now validates Twilio configuration and database connectivity for deployment gating.
 - MENU-driven command discovery with numbered next-step guidance.
 - Core commands: `CHECK`, `DATECHECK`, `TICKER/LOOKUP/FIND`, `BEAST`, `FEEDBACK`, `REMIND`, `LIST`, `CANCELREMINDER`, `STOP`.
 - Discovery commands: `TICKERS`, `SYMBOL <name>`.
