@@ -1,6 +1,6 @@
 # Operations Runbook
 
-Date: 2026-06-29
+Date: 2026-06-30
 
 ## Runtime Targets
 
@@ -98,6 +98,65 @@ Do not declare production-ready until this has been observed in the deployed env
 - reminder creation event from web process,
 - reminder claim/send event from separate worker process,
 - both against the same persistent PostgreSQL database.
+
+## Alerting Thresholds (Render + Twilio)
+
+Set these thresholds in production monitoring so SMS incidents are detected within minutes.
+
+### Render web service alerts
+
+1. Availability alert (critical)
+	- Condition: `/health` non-200 for 2 consecutive checks.
+	- Check interval: 30 seconds.
+	- Page immediately.
+
+2. Readiness alert (high)
+	- Condition: `/health/ready` returns 503 for 2 consecutive checks.
+	- Check interval: 60 seconds.
+	- Notify on-call and block new rollout promotion.
+
+3. Latency alert (high)
+	- Condition: p95 request latency > 4 seconds for 5 minutes.
+	- Notify on-call; begin dependency and DB saturation triage.
+
+4. Error-rate alert (critical)
+	- Condition: HTTP 5xx rate > 2% for 5 minutes OR > 5% for 2 minutes.
+	- Page immediately and start rollback/mitigation decision.
+
+### Twilio delivery/webhook alerts
+
+1. Webhook timeout/error alert (critical)
+	- Condition: Twilio inbound webhook errors (11200-class) >= 3 in 5 minutes.
+	- Page immediately; verify DNS/TLS/reachability and app health.
+
+2. Message failure alert (high)
+	- Condition: Twilio message status `failed` or `undelivered` > 5 in 10 minutes.
+	- Notify on-call; inspect carrier-specific error codes and sender health.
+
+3. Silence anomaly alert (critical)
+	- Condition: Twilio inbound message count >= 5 in 10 minutes while app logs show 0 `inbound_sms_received` events in same window.
+	- Page immediately; indicates requests are not reaching app.
+
+### App-log derived alerts
+
+1. Handler exception spike (high)
+	- Condition: `inbound_sms_handler_failed` >= 3 in 10 minutes.
+	- Notify on-call; inspect recent deploy diff and stack traces.
+
+2. Fallback response spike (high)
+	- Condition: `inbound_sms_fallback_replied` >= 5 in 15 minutes.
+	- Notify on-call; degradation mode active, user impact likely.
+
+3. Reply latency degradation (medium)
+	- Condition: `inbound_sms_replied.elapsed_ms` p95 > 3000 for 15 minutes.
+	- Create incident ticket; investigate external dependency slowness.
+
+### Immediate response policy
+
+1. If critical alert fires, acknowledge within 5 minutes and begin incident channel.
+2. If no `inbound_sms_received` events but Twilio has traffic, prioritize network/routing checks before app debugging.
+3. If readiness fails but liveness passes, treat as dependency outage or misconfiguration.
+4. If fallback spike persists > 15 minutes, execute rollback or mitigation release.
 
 ## Troubleshooting
 
