@@ -7,6 +7,7 @@ Date: 2026-06-30
 ### Inbound SMS and Command System
 - Twilio webhook endpoint at `/api/market-updates/sms`.
 - Webhook now includes server-side exception fallback to always return valid TwiML (prevents silent no-reply behavior on unexpected handler failures).
+- Webhook startup now degrades safely if database initialization fails: inbound requests still return fallback TwiML instead of causing complete no-response behavior.
 - Inbound webhook telemetry now logs receive/reply/fallback timing events for rapid incident diagnosis.
 - Readiness endpoint `/health/ready` now validates Twilio configuration and database connectivity for deployment gating.
 - Operations runbook now includes concrete Twilio/Render alert thresholds and escalation response policy.

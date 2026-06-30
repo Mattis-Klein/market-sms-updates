@@ -8,8 +8,9 @@ from fastapi.responses import JSONResponse
 
 from market_updates.admin_api import router as admin_router
 from market_updates.reminder_worker import run_reminder_worker_forever
+from market_updates.webhook_api import check_database_connectivity
 from market_updates.webhook_api import config as webhook_config
-from market_updates.webhook_api import db as webhook_db
+from market_updates.webhook_api import get_database_backend_name
 from market_updates.webhook_api import router as webhook_router
 
 
@@ -42,12 +43,7 @@ app.include_router(admin_router)
 
 
 def _check_database_connectivity() -> tuple[bool, str]:
-    try:
-        with webhook_db.connect() as conn:
-            conn.execute("SELECT 1")
-        return True, "ok"
-    except Exception as exc:  # pragma: no cover - defensive readiness path
-        return False, f"db_error:{type(exc).__name__}"
+    return check_database_connectivity()
 
 
 def build_readiness_report(
@@ -56,7 +52,7 @@ def build_readiness_report(
     db_checker=None,
 ) -> dict:
     cfg = config_override or webhook_config
-    backend = db_backend_override or webhook_db.backend
+    backend = db_backend_override or get_database_backend_name()
     checker = db_checker or _check_database_connectivity
     twilio_ready = bool(
         cfg.twilio_account_sid

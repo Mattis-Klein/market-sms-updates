@@ -7,6 +7,20 @@ from app.main import app
 
 
 class WebhookResilienceTests(unittest.TestCase):
+    def test_inbound_sms_returns_fallback_when_db_unavailable(self):
+        with patch("market_updates.webhook_api._init_db_if_needed", return_value=None), patch(
+            "market_updates.webhook_api.db_init_error", "RuntimeError"
+        ):
+            client = TestClient(app)
+            response = client.post(
+                "/api/market-updates/sms",
+                data={"From": "+18483291230", "Body": "MENU", "MessageSid": "SMDBDOWN1"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("<Response>", response.text)
+        self.assertIn("Service is temporarily unavailable.", response.text)
+
     def test_inbound_sms_returns_fallback_twiml_when_handler_raises(self):
         with patch("market_updates.webhook_api.handle_inbound_sms", new=AsyncMock(side_effect=RuntimeError("boom"))):
             client = TestClient(app)
