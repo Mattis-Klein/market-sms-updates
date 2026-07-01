@@ -15,6 +15,7 @@ from market_updates.db import Database
 from market_updates.keyword_handlers import handle_inbound_sms
 from market_updates.reminder_worker import process_due_reminders_once
 from market_updates.reminders import schedule_reminder
+from market_updates.sms_text import sanitize_sms_text
 
 
 def _base_config(db_path: str) -> MarketConfig:
@@ -43,6 +44,32 @@ def _base_config(db_path: str) -> MarketConfig:
 
 
 class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
+    def test_sanitize_removes_markdown_and_urls(self):
+        raw = (
+            "# Current News\n\n"
+            "**Top story** and *details*\n"
+            "`inline code`\n"
+            "[Reuters](https://reuters.com/world)\n"
+            "https://example.com/test\n"
+            "【1†source】\n"
+            "* bullet one\n"
+        )
+        cleaned = sanitize_sms_text(raw)
+        self.assertNotIn("#", cleaned)
+        self.assertNotIn("**", cleaned)
+        self.assertNotIn("*details*", cleaned)
+        self.assertNotIn("`", cleaned)
+        self.assertNotIn("https://", cleaned)
+        self.assertNotIn("【", cleaned)
+        self.assertIn("Reuters", cleaned)
+        self.assertIn("- bullet one", cleaned)
+
+    def test_sanitize_keeps_numbered_lists_readable(self):
+        raw = "1. First item\n2. Second item\n3. Third item"
+        cleaned = sanitize_sms_text(raw)
+        self.assertIn("1. First item", cleaned)
+        self.assertIn("2. Second item", cleaned)
+
     async def test_news_today_forces_web_search(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             config = _base_config(os.path.join(tmp, "db.sqlite"))
@@ -165,7 +192,8 @@ class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
                 reply, _ = await generate_assistant_reply(config, db, "+15550001111", "Weather today", [])
 
             self.assertIn("weather.gov", reply)
-            self.assertIn("https://", reply)
+            self.assertNotIn("https://", reply)
+            self.assertNotIn("http://", reply)
 
     async def test_web_search_does_not_schedule_reminder(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -181,8 +209,50 @@ class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
             reminders = db.list_scheduled_reminders("+15550001111", include_inactive=True)
             self.assertEqual(reminders, [])
 
+    async def test_more_returns_continuation_while_assistant_active(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            config = MarketConfig(**{**config.__dict__, "assistant_sms_max_chars": 80})
+            db = Database(config.market_updates_db_path)
+
+            long_text = (
+                "The market update includes several details about equities, rates, commodities, and macro news "
+                "that continue beyond the first message segment for testing continuation behavior."
+            )
+
+            async def fake_execute(_payload, _db, _phone, _config):
+                return type("R", (), {"text": long_text, "web_search_used": False, "web_search_failed": False})
+
+            with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
+                first_reply, history = await generate_assistant_reply(config, db, "+15550001111", "Explain investing basics in detail", [])
+
+            self.assertIn("Reply MORE for the rest.", first_reply)
+
+            second_reply, _ = await generate_assistant_reply(config, db, "+15550001111", "MORE", history)
+            self.assertNotEqual(second_reply, "No additional content is available. Ask another question.")
+            self.assertNotIn("https://", second_reply)
+
 
 class ReminderPersistenceAndWorkerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reminder_confirmation_contains_no_markdown(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            db = Database(config.market_updates_db_path)
+
+            past_freeform = (datetime.now(timezone.utc) + timedelta(minutes=45)).isoformat()
+            payload = {
+                "reminder_text": "**Call** my brother [doc](https://example.com)",
+                "scheduled_time_local": past_freeform,
+                "timezone": "America/New_York",
+            }
+
+            from market_updates.assistant_mode import _handle_schedule_reminder_tool
+
+            result = _handle_schedule_reminder_tool(db, "+15551112222", payload, config)
+            self.assertTrue(result["ok"])
+            self.assertNotIn("**", result["confirmation"])
+            self.assertNotIn("https://", result["confirmation"])
+
     async def test_half_hour_reminder_stores_30_minutes_future(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Database(os.path.join(tmp, "db.sqlite"))
@@ -240,6 +310,26 @@ class ReminderPersistenceAndWorkerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(out["sent"], 1)
             self.assertEqual(send_mock.await_count, 1)
+
+    async def test_reminder_delivery_contains_no_markdown(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            config = _base_config(os.path.join(tmp, "db.sqlite"))
+            db = Database(config.market_updates_db_path)
+            past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+            db.create_scheduled_reminder(
+                "+15551112222", "**Call** my brother [link](https://example.com)", past, past, "America/New_York", "k-md"
+            )
+
+            with patch(
+                "market_updates.reminder_worker.send_sms_with_result",
+                new=AsyncMock(return_value={"ok": True, "error_type": "none", "error": ""}),
+            ) as send_mock:
+                out = await process_due_reminders_once(db, config)
+
+            self.assertEqual(out["sent"], 1)
+            sent_body = send_mock.await_args.args[4]
+            self.assertNotIn("**", sent_body)
+            self.assertNotIn("https://", sent_body)
 
     async def test_reminder_never_delivered_twice(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

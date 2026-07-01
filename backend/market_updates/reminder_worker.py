@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from .config import load_config
 from .db import Database, utc_now
 from .sms_sender import send_sms_with_result
+from .sms_text import sanitize_sms_text
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ async def process_due_reminders_once(db: Database, config) -> dict:
         processed += 1
         reminder_id = int(item["id"])
         attempts = int(item.get("attempt_count") or 0)
-        body = f"Reminder: {item['reminder_text']}"
+        body = sanitize_sms_text(f"Reminder: {item['reminder_text']}")
 
         result = await send_sms_with_result(
             config.twilio_account_sid,

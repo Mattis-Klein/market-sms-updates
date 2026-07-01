@@ -12,6 +12,7 @@ import httpx
 
 from .db import Database
 from .reminders import format_local_confirmation, parse_iso_or_natural_local_time, schedule_reminder
+from .sms_text import CONTINUATION_PREFIX, fit_sms_with_more, sanitize_sms_text
 
 
 logger = logging.getLogger(__name__)
@@ -201,6 +202,8 @@ def trim_history(history: list[dict[str, str]], max_history_messages: int) -> li
             continue
         if not isinstance(content, str):
             continue
+        if content.startswith(CONTINUATION_PREFIX):
+            continue
         cleaned.append({"role": role, "content": content[:1200]})
     if max_history_messages <= 0:
         return []
@@ -215,17 +218,35 @@ def _safe_zoneinfo(timezone_name: str):
 
 
 def _fit_for_sms(text: str, max_chars: int) -> str:
-    body = "\n".join(line.rstrip() for line in text.strip().splitlines() if line.strip())
-    if len(body) <= max_chars:
-        return body
-    clipped = body[: max(120, max_chars - 120)].rstrip()
-    return (
-        f"{clipped}\n"
-        "More is available. Reply with:\n"
-        "1. Continue\n"
-        "2. Short summary\n"
-        "3. New question"
-    )
+    body = sanitize_sms_text(text)
+    fitted, _ = fit_sms_with_more(body, max_chars)
+    return fitted
+
+
+def _extract_continuation(history: list[dict[str, str]]) -> str:
+    for item in reversed(history):
+        content = item.get("content", "")
+        if isinstance(content, str) and content.startswith(CONTINUATION_PREFIX):
+            return content[len(CONTINUATION_PREFIX) :].lstrip()
+    return ""
+
+
+def _replace_continuation(history: list[dict[str, str]], continuation: str) -> list[dict[str, str]]:
+    kept = [
+        item
+        for item in history
+        if not (isinstance(item.get("content"), str) and item.get("content", "").startswith(CONTINUATION_PREFIX))
+    ]
+    if continuation.strip():
+        kept.append({"role": "assistant", "content": f"{CONTINUATION_PREFIX} {continuation.strip()}"})
+    return kept
+
+
+def _append_continuation(history: list[dict[str, str]], continuation: str) -> list[dict[str, str]]:
+    cleaned = _replace_continuation(history, "")
+    if continuation.strip():
+        cleaned.append({"role": "assistant", "content": f"{CONTINUATION_PREFIX} {continuation.strip()}"})
+    return cleaned
 
 
 def _is_eligible_for_fallback(error: httpx.HTTPError | Exception) -> bool:
@@ -442,7 +463,7 @@ def _render_list_reminders(items: list[dict]) -> str:
 
 
 def _handle_schedule_reminder_tool(db: Database, phone_number: str, args: dict, config: Any) -> dict:
-    reminder_text = str(args.get("reminder_text") or "").strip()
+    reminder_text = sanitize_sms_text(str(args.get("reminder_text") or "").strip())
     scheduled_time_local = str(args.get("scheduled_time_local") or "").strip()
     timezone_name = str(args.get("timezone") or config.assist_default_timezone or "America/New_York").strip()
 
@@ -466,7 +487,7 @@ def _handle_schedule_reminder_tool(db: Database, phone_number: str, args: dict, 
     local_dt = parse_iso_or_natural_local_time(result["scheduled_at_local"], result["timezone"]).local_dt
     now_local = datetime.now(timezone.utc).astimezone(_safe_zoneinfo(result["timezone"]))
     pretty = format_local_confirmation(local_dt, now_local)
-    confirmation = f"Reminder set for {pretty}: {reminder_text}."
+    confirmation = sanitize_sms_text(f"Reminder set for {pretty}: {reminder_text}.")
     return {
         "ok": True,
         "id": result["id"],
@@ -502,7 +523,7 @@ def _handle_cancel_reminder_tool(db: Database, phone_number: str, args: dict) ->
 
 def _handle_update_reminder_tool(db: Database, phone_number: str, args: dict, config: Any) -> dict:
     reminder_id = int(args.get("reminder_id") or 0)
-    text = str(args.get("new_reminder_text") or "").strip()
+    text = sanitize_sms_text(str(args.get("new_reminder_text") or "").strip())
     local_time = str(args.get("new_scheduled_time_local") or "").strip()
     timezone_name = str(args.get("timezone") or config.assist_default_timezone or "America/New_York").strip()
 
@@ -521,7 +542,7 @@ def _handle_update_reminder_tool(db: Database, phone_number: str, args: dict, co
 
     now_local = datetime.now(timezone.utc).astimezone(ZoneInfo(timezone_name))
     pretty = format_local_confirmation(parsed.local_dt, now_local)
-    return {"ok": True, "message": f"Reminder updated to {pretty}: {text}."}
+    return {"ok": True, "message": sanitize_sms_text(f"Reminder updated to {pretty}: {text}.")}
 
 
 async def _execute_responses_loop(
@@ -601,18 +622,33 @@ async def generate_assistant_reply(
     user_message: str,
     history: list[dict[str, str]],
 ) -> tuple[str, list[dict[str, str]]]:
+    incoming = (user_message or "").strip()
+    if incoming.upper() == "MORE":
+        continuation = _extract_continuation(history)
+        if continuation:
+            chunk, remainder = fit_sms_with_more(sanitize_sms_text(continuation), config.assistant_sms_max_chars)
+            updated = _replace_continuation(history, "")
+            updated = trim_history(updated + [{"role": "user", "content": incoming}, {"role": "assistant", "content": chunk}], config.assistant_max_history_messages)
+            updated = _append_continuation(updated, remainder)
+            return chunk, updated
+        no_more = "No additional content is available. Ask another question."
+        updated = trim_history(history + [{"role": "user", "content": incoming}, {"role": "assistant", "content": no_more}], config.assistant_max_history_messages)
+        return no_more, updated
+
     if is_image_request(user_message):
+        safe_reply = sanitize_sms_text(ASSIST_IMAGE_UNAVAILABLE_REPLY)
         updated_history = trim_history(
-            history + [{"role": "user", "content": user_message}, {"role": "assistant", "content": ASSIST_IMAGE_UNAVAILABLE_REPLY}],
+            history + [{"role": "user", "content": user_message}, {"role": "assistant", "content": safe_reply}],
             config.assistant_max_history_messages,
         )
-        return ASSIST_IMAGE_UNAVAILABLE_REPLY, updated_history
+        return safe_reply, updated_history
 
     if is_explicit_content_request(user_message):
         refusal = (
             "I can't help with explicit sexual content. "
             "I can help with a non-explicit version, relationship advice, or general health information."
         )
+        refusal = sanitize_sms_text(refusal)
         updated_history = trim_history(
             history + [{"role": "user", "content": user_message}, {"role": "assistant", "content": refusal}],
             config.assistant_max_history_messages,
@@ -621,6 +657,7 @@ async def generate_assistant_reply(
 
     if is_dangerous_request(user_message):
         refusal = "I can't help with dangerous, criminal, or abusive instructions. I can help with legal safety guidance instead."
+        refusal = sanitize_sms_text(refusal)
         updated_history = trim_history(
             history + [{"role": "user", "content": user_message}, {"role": "assistant", "content": refusal}],
             config.assistant_max_history_messages,
@@ -633,7 +670,11 @@ async def generate_assistant_reply(
     force_web = intent == "current_info"
 
     system_prompt = (
-        "You are an SMS assistant. Keep replies concise and direct. "
+        "Respond in plain SMS text only. "
+        "Do not use Markdown, bold, italics, headings, tables, backticks, code blocks, Markdown links, citation markers, or decorative symbols. "
+        "Do not include website URLs or source links. "
+        "When live web search is used, provide the useful information directly. Mention source organization names only when helpful, without links. "
+        "Use short paragraphs and simple numbered lists. "
         "Never claim a web search happened unless a web_search tool call actually occurred. "
         "If web search fails, respond exactly: I couldn't access live information right now. Please try again shortly. "
         "When using relative time words like today, tomorrow, tonight, in 30 minutes, or next Friday, resolve them against the provided current date/time. "
@@ -668,11 +709,14 @@ async def generate_assistant_reply(
     else:
         reply = result.text
 
-    sms_reply = _fit_for_sms(reply, config.assistant_sms_max_chars)
+    clean_reply = sanitize_sms_text(reply)
+    sms_reply, remainder = fit_sms_with_more(clean_reply, config.assistant_sms_max_chars)
+    history_with_continuation = _replace_continuation(history, "")
     updated_history = trim_history(
-        history + [{"role": "user", "content": user_message}, {"role": "assistant", "content": sms_reply}],
+        history_with_continuation + [{"role": "user", "content": user_message}, {"role": "assistant", "content": sms_reply}],
         config.assistant_max_history_messages,
     )
+    updated_history = _append_continuation(updated_history, remainder)
 
     logger.info(
         "assistant_reply_generated",
