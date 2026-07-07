@@ -9,6 +9,11 @@ Core module: backend/market_updates
 
 - keyword_handlers.py: primary SMS routing, session transitions, command orchestration, and assistant-mode priority handling.
 - assistant_mode.py: AI assistant policy, OpenAI Responses API integration, forced `web_search` for current-information queries, strict reminder tools, SMS response shaping, and dual OpenAI provider fallback handling.
+- live_data/finance.py: provider-backed stock/index/crypto quotes, market status, financial-news fetch, ambiguity handling, and delayed-data labeling.
+- live_data/sports.py: provider-backed league/game score and team schedule helpers with ambiguity checks.
+- live_data/news.py: required-web-search current-news retrieval with reliable-source constraints and URL stripping.
+- live_data/cache.py: short in-memory TTL cache with brief error-result TTL.
+- live_data/models.py: shared live-data result shape with freshness and confidence fields.
 - keywords.py: text normalization, direct-symbol parsing, symbol lookup catalog.
 - profiles.py: user-profile assignment and per-profile keyword policy.
 - lottery.py: Powerball data fetch, normalization, and in-memory TTL caching.
@@ -58,6 +63,12 @@ OpenAI API Redundancy:
 - Fallback is NOT used for non-transient errors: content policy violations, invalid parameters, unsupported models, or malformed data.
 - Both providers fail: user receives safe fallback message.
 
+Live data provider configuration:
+- Finance providers: `finnhub`, `twelvedata`, `fmp`.
+- Sports providers: `sportsdataio`, `sportradar` (placeholder-safe path currently returns controlled fallback unless configured endpoint is implemented).
+- News provider: `openai_web_search`.
+- Freshness and honesty controls are enforced through provider timestamps, stale thresholds, and tool-call verification in assistant routing.
+
 ## Request Flow (Inbound SMS)
 
 1. Twilio POSTs to `/api/market-updates/sms`.
@@ -92,6 +103,24 @@ Health endpoints:
 - Active assistant conversation state takes precedence over normal app keywords.
 - Reserved assistant exit commands are exact-only: `@exit` and `@assist off`.
 - Carrier compliance commands always override assistant mode.
+- Live current-data assistant routing uses explicit intent buckets:
+	- `finance_live` -> finance tool functions.
+	- `sports_live` -> sports tool functions.
+	- `current_news` -> `get_current_news` (required tool call).
+	- fallback `current_info` -> required `web_search`.
+
+## Live Data Reliability Model
+
+- Every live-data tool returns a standardized payload (`LiveDataResult`) containing:
+	- retrieval timestamp,
+	- source timestamp,
+	- `is_live`/`is_delayed` flags,
+	- confidence level,
+	- safe error text if unresolved.
+- Assistant-level guardrail checks required tool execution for live intents and refuses to fabricate answers when required tool evidence is missing.
+- Finance quotes mark delayed data when source age exceeds threshold and label likely market-closed snapshots.
+- Sports paths require timestamps when configured; missing timestamp can trigger safe refusal.
+- News path requires an actual `web_search_call` in provider output or returns a safe failure response.
 
 ## Reminder Delivery
 

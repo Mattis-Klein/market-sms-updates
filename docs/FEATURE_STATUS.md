@@ -51,6 +51,13 @@ Date: 2026-06-30
   - Fallback NOT used on non-transient errors: content policy, invalid params, unsupported models, malformed data.
   - Both keys never exposed in logs or user responses.
   - Both provider failure returns safe SMS fallback message to user.
+- **NEW:** Reliable live current-data tools with strict intent routing and tool enforcement.
+  - Finance intents route to provider-backed quote/index/crypto/status/news tools.
+  - Sports intents route to provider-backed score/status/schedule tools.
+  - Current-news intents route to required web-search-backed news tool.
+  - Assistant enforces required tool-call evidence for live intents and returns safe fallback if tool evidence is missing.
+  - Live-data outputs include freshness metadata (`retrieved_at_utc`, provider timestamp, delayed flags, confidence).
+  - Live-data outputs remain plain SMS text (no markdown, no links) through final sanitizer.
 
 ### Persistent Assistant Reminders
 - Assistant can schedule reminders from natural language requests in conversation mode.
@@ -99,4 +106,5 @@ Date: 2026-06-30
 - Add stronger auth (SSO/JWT) for admin and feedback portal.
 - Add retry/queueing for outbound and forwarding failures.
 - Expand CI and quality gates beyond current focused unit coverage.
+- Sports `sportradar` provider is configuration-ready but currently returns a controlled fallback until endpoint integration is completed.
 - Production readiness remains gated on live proof: do not declare fully production-ready until a reminder is created by the web service and delivered by a separately running worker using the same persistent PostgreSQL database.

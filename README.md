@@ -92,6 +92,38 @@ Assistant mode environment:
 - `ASSISTANT_MAX_HISTORY_MESSAGES` (default: `12`): Max conversation history messages to retain
 - `ASSISTANT_SMS_MAX_CHARS` (default: `1200`): Max characters for SMS responses
 
+Live current-data providers and freshness controls:
+- `FINANCE_DATA_PROVIDER` (default: `finnhub`; supported: `finnhub`, `twelvedata`, `fmp`)
+- `FINNHUB_API_KEY`
+- `TWELVE_DATA_API_KEY`
+- `FMP_API_KEY`
+- `FINANCE_CACHE_SECONDS` (default: `15`)
+- `FINANCE_STALE_AFTER_SECONDS` (default: `60`)
+- `FINANCE_REQUIRE_PROVIDER_TIMESTAMP` (default: `true`)
+- `SPORTS_DATA_PROVIDER` (default: `sportsdataio`; supported: `sportsdataio`, `sportradar`)
+- `SPORTSDATAIO_API_KEY`
+- `SPORTRADAR_API_KEY`
+- `SPORTS_CACHE_SECONDS` (default: `10`)
+- `SPORTS_STALE_AFTER_SECONDS` (default: `45`)
+- `SPORTS_REQUIRE_PROVIDER_TIMESTAMP` (default: `true`)
+- `NEWS_PROVIDER` (default: `openai_web_search`)
+- `NEWS_FORCE_RELIABLE_SOURCES` (default: `true`)
+- `NEWS_MAX_RESULTS` (default: `5`)
+- `NEWS_CACHE_SECONDS` (default: `120`)
+
+## Live Current Data In Assistant Mode
+
+When `@assist` receives a live-data question, it uses strict tool routing (not free-form model guesses):
+- finance prompts route to `get_live_quote`, `get_market_index_quote`, `get_crypto_quote`, `get_market_status`, or `get_financial_news`
+- sports prompts route to `get_live_sports_scores`, `get_game_status`, or `get_team_schedule`
+- current-news prompts route to `get_current_news` with required web search
+
+Reliability behavior:
+- if required live tools are not actually called, reply falls back to a safe failure message
+- if web search is required but missing or failed, reply falls back to safe live-info failure text
+- responses are sanitized to plain SMS text with no markdown and no links
+- short in-memory TTL caches are used for fast responses; error results are cached only briefly
+
 Persistent reminders environment:
 - `REMINDERS_ENABLED` (default: `true`)
 - `REMINDER_POLL_SECONDS` (default: `15`)

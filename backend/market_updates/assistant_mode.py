@@ -11,6 +11,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
 
 from .db import Database
+from .live_data import finance as live_finance
+from .live_data import news as live_news
+from .live_data import sports as live_sports
 from .reminders import format_local_confirmation, parse_iso_or_natural_local_time, schedule_reminder
 from .sms_text import CONTINUATION_PREFIX, fit_sms_with_more, sanitize_sms_text
 
@@ -30,6 +33,7 @@ ASSIST_AI_FAILURE_REPLY = (
     "The AI assistant is temporarily unavailable. "
     "Please try again shortly or reply MENU to return to the main menu."
 )
+ASSIST_LIVE_DATA_FAILURE_REPLY = "I couldn't get reliable live data right now. Please try again shortly."
 
 CARRIER_STOP_COMMANDS = {"STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"}
 CARRIER_START_COMMANDS = {"START", "YES", "UNSTOP"}
@@ -97,6 +101,48 @@ _CURRENT_INFO_HINT_PATTERNS = [
     r"\brelease\b",
 ]
 
+_FINANCE_INTENT_PATTERNS = [
+    r"\bstock\b",
+    r"\btrading at\b",
+    r"\bquote\b",
+    r"\bmarket (today|now|status)\b",
+    r"\bnasdaq\b",
+    r"\bdow\b",
+    r"\bs&p\b",
+    r"\bspy\b",
+    r"\bqqq\b",
+    r"\bbtc\b",
+    r"\bbitcoin\b",
+    r"\beth\b",
+    r"\bcrypto\b",
+]
+
+_SPORTS_INTENT_PATTERNS = [
+    r"\bscore\b",
+    r"\bgame\b",
+    r"\bwinning\b",
+    r"\bquarter\b",
+    r"\bhalftime\b",
+    r"\bnfl\b",
+    r"\bnba\b",
+    r"\bmlb\b",
+    r"\bnhl\b",
+    r"\byankees\b",
+    r"\blakers\b",
+    r"\bknicks\b",
+    r"\bmets\b",
+    r"\brangers\b",
+]
+
+_NEWS_INTENT_PATTERNS = [
+    r"\blatest news\b",
+    r"\bmajor news\b",
+    r"\bcurrent events\b",
+    r"\bwhat happened\b",
+    r"\bnews today\b",
+    r"\bnews right now\b",
+]
+
 _REMINDER_INTENT_PATTERNS = [
     r"\bremind me\b",
     r"\bset (a )?reminder\b",
@@ -115,6 +161,7 @@ class ResponsesExecutionResult:
     text: str
     web_search_used: bool
     web_search_failed: bool
+    called_functions: set[str]
 
 
 def assistant_now() -> str:
@@ -174,12 +221,82 @@ def has_reminder_intent(message: str) -> bool:
     return any(re.search(pattern, text) for pattern in _REMINDER_INTENT_PATTERNS)
 
 
+def has_finance_intent(message: str) -> bool:
+    text = message.lower()
+    return any(re.search(pattern, text) for pattern in _FINANCE_INTENT_PATTERNS)
+
+
+def has_sports_intent(message: str) -> bool:
+    text = message.lower()
+    return any(re.search(pattern, text) for pattern in _SPORTS_INTENT_PATTERNS)
+
+
+def has_news_intent(message: str) -> bool:
+    text = message.lower()
+    return any(re.search(pattern, text) for pattern in _NEWS_INTENT_PATTERNS)
+
+
 def classify_intent(message: str, force_web_enabled: bool) -> str:
     if has_reminder_intent(message):
         return "reminder"
+    if has_finance_intent(message):
+        return "finance_live"
+    if has_sports_intent(message):
+        return "sports_live"
+    if has_news_intent(message):
+        return "current_news"
     if should_force_web_search(message, force_web_enabled):
         return "current_info"
     return "general"
+
+
+def _extract_symbol_candidate(message: str) -> str:
+    raw = message.strip().lower()
+    replacements = {
+        "apple": "AAPL",
+        "tesla": "TSLA",
+        "microsoft": "MSFT",
+        "nvidia": "NVDA",
+        "dow": "^DJI",
+        "nasdaq": "^IXIC",
+        "s&p": "^GSPC",
+        "bitcoin": "BTC",
+        "ethereum": "ETH",
+    }
+    for term, symbol in replacements.items():
+        if term in raw:
+            return symbol
+    tokens = re.findall(r"\b[A-Za-z^\-]{2,8}\b", message)
+    return tokens[-1].upper() if tokens else "AAPL"
+
+
+def live_tool_choice_for_message(message: str, intent: str) -> dict[str, str]:
+    if intent == "finance_live":
+        text = message.lower()
+        symbol = _extract_symbol_candidate(message)
+        if any(word in text for word in ["btc", "bitcoin", "eth", "crypto"]):
+            return {"type": "function", "name": "get_crypto_quote"}
+        if any(word in text for word in ["dow", "nasdaq", "s&p", "index", "spy", "qqq", "dia", "iwm"]):
+            return {"type": "function", "name": "get_market_index_quote"}
+        if "market status" in text or "market open" in text or "market closed" in text:
+            return {"type": "function", "name": "get_market_status"}
+        if "why" in text and ("market" in text or "stock" in text):
+            return {"type": "function", "name": "get_financial_news"}
+        _ = symbol
+        return {"type": "function", "name": "get_live_quote"}
+
+    if intent == "sports_live":
+        text = message.lower()
+        if "schedule" in text or "next game" in text:
+            return {"type": "function", "name": "get_team_schedule"}
+        if "winning" in text or "status" in text or "quarter" in text or "halftime" in text:
+            return {"type": "function", "name": "get_game_status"}
+        return {"type": "function", "name": "get_live_sports_scores"}
+
+    if intent == "current_news":
+        return {"type": "function", "name": "get_current_news"}
+
+    return {"type": "function", "name": "get_live_quote"}
 
 
 def reminder_tool_choice_for_message(message: str) -> dict[str, str]:
@@ -324,6 +441,142 @@ def _build_reminder_tools() -> list[dict[str, Any]]:
                     "timezone": {"type": "string"},
                 },
                 "required": ["reminder_id", "new_reminder_text", "new_scheduled_time_local", "timezone"],
+            },
+        },
+    ]
+
+
+def _build_live_data_tools() -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "function",
+            "name": "get_live_quote",
+            "description": "Fetch the latest available stock or ETF quote from the configured financial provider.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "symbol": {"type": "string", "description": "Ticker symbol such as AAPL, TSLA, SPY, QQQ."},
+                },
+                "required": ["symbol"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_market_index_quote",
+            "description": "Fetch latest quote for market index symbols such as ^GSPC, ^IXIC, ^DJI, SPY, or QQQ.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "symbol": {"type": "string", "description": "Index or ETF symbol requested by the user."},
+                },
+                "required": ["symbol"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_crypto_quote",
+            "description": "Fetch latest cryptocurrency quote.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "symbol": {"type": "string", "description": "Crypto symbol such as BTC, ETH, SOL."},
+                    "currency": {"type": "string", "description": "Quote currency such as USD."},
+                },
+                "required": ["symbol", "currency"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_market_status",
+            "description": "Fetch current market open or closed status for US markets.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_financial_news",
+            "description": "Fetch current financial headlines from configured finance provider.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "topic": {"type": "string", "description": "Optional finance topic such as Tesla or market."},
+                },
+                "required": ["topic"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_live_sports_scores",
+            "description": "Fetch current live or latest scores for a sports league.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "league": {"type": "string", "description": "League such as NFL, NBA, MLB, NHL."},
+                    "date_local": {"type": "string", "description": "Date in YYYY-MM-DD format."},
+                },
+                "required": ["league", "date_local"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_game_status",
+            "description": "Fetch current or final status for a specific game or team matchup.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "league": {"type": "string", "description": "League such as NFL, NBA, MLB, NHL."},
+                    "team": {"type": "string", "description": "Team name or abbreviation."},
+                    "opponent": {"type": "string", "description": "Opponent name or abbreviation."},
+                    "date_local": {"type": "string", "description": "Date in YYYY-MM-DD format."},
+                },
+                "required": ["league", "team", "opponent", "date_local"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_team_schedule",
+            "description": "Fetch current schedule information for a team in a league.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "league": {"type": "string", "description": "League such as NFL, NBA, MLB, NHL."},
+                    "team": {"type": "string", "description": "Team name or abbreviation."},
+                    "date_local": {"type": "string", "description": "Date in YYYY-MM-DD format."},
+                },
+                "required": ["league", "team", "date_local"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "get_current_news",
+            "description": "Fetch current news with reliable sources using web search and summarize in SMS style.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "query": {"type": "string", "description": "Current-events question to search."},
+                },
+                "required": ["query"],
             },
         },
     ]
@@ -553,10 +806,11 @@ async def _execute_responses_loop(
 ) -> ResponsesExecutionResult:
     web_used = False
     web_failed = False
+    called_functions: set[str] = set()
 
     response, _, _ = await _call_openai_responses(payload, config)
     if response is None:
-        return ResponsesExecutionResult(text=ASSIST_AI_FAILURE_REPLY, web_search_used=False, web_search_failed=False)
+        return ResponsesExecutionResult(text=ASSIST_AI_FAILURE_REPLY, web_search_used=False, web_search_failed=False, called_functions=set())
 
     max_turns = 4
     for _ in range(max_turns):
@@ -569,12 +823,13 @@ async def _execute_responses_loop(
             text = _extract_output_text(response)
             if not text:
                 text = ASSIST_AI_FAILURE_REPLY
-            return ResponsesExecutionResult(text=text, web_search_used=web_used, web_search_failed=web_failed)
+            return ResponsesExecutionResult(text=text, web_search_used=web_used, web_search_failed=web_failed, called_functions=called_functions)
 
         function_outputs = []
         for call in function_calls:
             call_id = call.get("call_id")
             name = call.get("name")
+            called_functions.add(name)
             try:
                 args = json.loads(call.get("arguments") or "{}")
             except json.JSONDecodeError:
@@ -590,6 +845,52 @@ async def _execute_responses_loop(
                 output_obj = _handle_cancel_reminder_tool(db, phone_number, args)
             elif name == "update_reminder":
                 output_obj = _handle_update_reminder_tool(db, phone_number, args, config)
+            elif name == "get_live_quote":
+                result = await live_finance.get_live_quote(config, str(args.get("symbol") or ""))
+                output_obj = result.to_tool_output()
+            elif name == "get_market_index_quote":
+                result = await live_finance.get_market_index_quote(config, str(args.get("symbol") or ""))
+                output_obj = result.to_tool_output()
+            elif name == "get_crypto_quote":
+                result = await live_finance.get_crypto_quote(
+                    config,
+                    str(args.get("symbol") or ""),
+                    str(args.get("currency") or "USD"),
+                )
+                output_obj = result.to_tool_output()
+            elif name == "get_market_status":
+                result = await live_finance.get_market_status(config)
+                output_obj = result.to_tool_output()
+            elif name == "get_financial_news":
+                result = await live_finance.get_financial_news(config, str(args.get("topic") or "market"))
+                output_obj = result.to_tool_output()
+            elif name == "get_live_sports_scores":
+                result = await live_sports.get_live_sports_scores(
+                    config,
+                    str(args.get("league") or "NBA"),
+                    str(args.get("date_local") or datetime.now(timezone.utc).date().isoformat()),
+                )
+                output_obj = result.to_tool_output()
+            elif name == "get_game_status":
+                result = await live_sports.get_game_status(
+                    config,
+                    str(args.get("league") or "NBA"),
+                    str(args.get("team") or ""),
+                    str(args.get("opponent") or ""),
+                    str(args.get("date_local") or datetime.now(timezone.utc).date().isoformat()),
+                )
+                output_obj = result.to_tool_output()
+            elif name == "get_team_schedule":
+                result = await live_sports.get_team_schedule(
+                    config,
+                    str(args.get("league") or "NBA"),
+                    str(args.get("team") or ""),
+                    str(args.get("date_local") or datetime.now(timezone.utc).date().isoformat()),
+                )
+                output_obj = result.to_tool_output()
+            elif name == "get_current_news":
+                result = await live_news.get_current_news(config, str(args.get("query") or "latest news"))
+                output_obj = result.to_tool_output()
             else:
                 output_obj = {"ok": False, "message": "Unknown function."}
 
@@ -610,9 +911,9 @@ async def _execute_responses_loop(
         }
         response, _, _ = await _call_openai_responses(chained_payload, config)
         if response is None:
-            return ResponsesExecutionResult(text=ASSIST_AI_FAILURE_REPLY, web_search_used=web_used, web_search_failed=web_failed)
+            return ResponsesExecutionResult(text=ASSIST_AI_FAILURE_REPLY, web_search_used=web_used, web_search_failed=web_failed, called_functions=called_functions)
 
-    return ResponsesExecutionResult(text=ASSIST_AI_FAILURE_REPLY, web_search_used=web_used, web_search_failed=web_failed)
+    return ResponsesExecutionResult(text=ASSIST_AI_FAILURE_REPLY, web_search_used=web_used, web_search_failed=web_failed, called_functions=called_functions)
 
 
 async def generate_assistant_reply(
@@ -668,6 +969,7 @@ async def generate_assistant_reply(
     local_now = datetime.now(timezone.utc).astimezone(_safe_zoneinfo(tz_name))
     intent = classify_intent(user_message, config.assist_force_web_for_current_info)
     force_web = intent == "current_info"
+    required_live_tools: set[str] = set()
 
     system_prompt = (
         "Respond in plain SMS text only. "
@@ -688,6 +990,20 @@ async def generate_assistant_reply(
     tool_choice: Any
     if intent == "reminder":
         tool_choice = reminder_tool_choice_for_message(user_message)
+    elif intent in {"finance_live", "sports_live", "current_news"}:
+        tool_choice = live_tool_choice_for_message(user_message, intent)
+        if intent == "finance_live":
+            required_live_tools = {
+                "get_live_quote",
+                "get_market_index_quote",
+                "get_crypto_quote",
+                "get_market_status",
+                "get_financial_news",
+            }
+        elif intent == "sports_live":
+            required_live_tools = {"get_live_sports_scores", "get_game_status", "get_team_schedule"}
+        else:
+            required_live_tools = {"get_current_news"}
     elif force_web:
         tool_choice = "required"
     else:
@@ -696,18 +1012,23 @@ async def generate_assistant_reply(
     payload = {
         "model": config.openai_model,
         "input": input_messages,
-        "tools": [{"type": "web_search"}] + _build_reminder_tools(),
+        "tools": [{"type": "web_search"}] + _build_reminder_tools() + _build_live_data_tools(),
         "tool_choice": tool_choice,
     }
 
     result = await _execute_responses_loop(payload, db, phone_number, config)
+    called_functions = set(getattr(result, "called_functions", set()) or set())
+    web_search_failed = bool(getattr(result, "web_search_failed", False))
+    web_search_used = bool(getattr(result, "web_search_used", False))
 
-    if force_web and (result.web_search_failed or not result.web_search_used):
+    if force_web and (web_search_failed or not web_search_used):
         reply = ASSIST_WEB_SEARCH_FAILURE_REPLY
-    elif result.web_search_failed:
+    elif required_live_tools and not (required_live_tools & called_functions):
+        reply = ASSIST_LIVE_DATA_FAILURE_REPLY
+    elif web_search_failed:
         reply = ASSIST_WEB_SEARCH_FAILURE_REPLY
     else:
-        reply = result.text
+        reply = str(getattr(result, "text", ASSIST_AI_FAILURE_REPLY) or ASSIST_AI_FAILURE_REPLY)
 
     clean_reply = sanitize_sms_text(reply)
     sms_reply, remainder = fit_sms_with_more(clean_reply, config.assistant_sms_max_chars)
@@ -724,8 +1045,8 @@ async def generate_assistant_reply(
             "phone": mask_phone_number(phone_number),
             "message_length": len(user_message),
             "forced_web_search": force_web,
-            "web_search_used": result.web_search_used,
-            "web_search_failed": result.web_search_failed,
+            "web_search_used": web_search_used,
+            "web_search_failed": web_search_failed,
         },
     )
     return sms_reply, updated_history

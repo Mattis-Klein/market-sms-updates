@@ -37,6 +37,29 @@ Assistant mode:
 - `ASSISTANT_SESSION_EXPIRATION_MINUTES` (default: `45`)
 - `ASSISTANT_MAX_HISTORY_MESSAGES` (default: `12`)
 - `ASSISTANT_SMS_MAX_CHARS` (default: `1200`)
+- `ASSISTANT_SEARCH_PROVIDER` (default: `tavily`)
+- `ASSISTANT_SEARCH_API_KEY` (optional)
+- `ASSISTANT_SEARCH_TIMEOUT_SECONDS` (default: `8`)
+- `ASSISTANT_SEARCH_MAX_RESULTS` (default: `4`)
+
+Live current-data providers:
+- `FINANCE_DATA_PROVIDER` (default: `finnhub`; supported: `finnhub`, `twelvedata`, `fmp`)
+- `FINNHUB_API_KEY`
+- `TWELVE_DATA_API_KEY`
+- `FMP_API_KEY`
+- `FINANCE_CACHE_SECONDS` (default: `15`)
+- `FINANCE_STALE_AFTER_SECONDS` (default: `60`)
+- `FINANCE_REQUIRE_PROVIDER_TIMESTAMP` (default: `true`)
+- `SPORTS_DATA_PROVIDER` (default: `sportsdataio`; supported: `sportsdataio`, `sportradar`)
+- `SPORTSDATAIO_API_KEY`
+- `SPORTRADAR_API_KEY`
+- `SPORTS_CACHE_SECONDS` (default: `10`)
+- `SPORTS_STALE_AFTER_SECONDS` (default: `45`)
+- `SPORTS_REQUIRE_PROVIDER_TIMESTAMP` (default: `true`)
+- `NEWS_PROVIDER` (default: `openai_web_search`)
+- `NEWS_FORCE_RELIABLE_SOURCES` (default: `true`)
+- `NEWS_MAX_RESULTS` (default: `5`)
+- `NEWS_CACHE_SECONDS` (default: `120`)
 
 Persistent reminders:
 - `REMINDERS_ENABLED` (default: `true`)
@@ -108,6 +131,9 @@ Safety notes:
 - `BEAST` and `@mrbeast` return subscriber count or fallback message.
 - `@assist` returns: `How can I assist you today?`
 - `@assist` then `What is the weather right now?` forces Responses API web search and returns either current sourced result or: `I couldn't access live information right now. Please try again shortly.`
+- `@assist` then `What is AAPL trading at?` should route through finance live-data tooling and return quote summary or safe fallback.
+- `@assist` then `What's the Yankees score?` should route through sports live-data tooling and return score summary or safe fallback.
+- `@assist` then `What is the latest news today?` should route through `get_current_news` with required web search.
 - `menu` while in assistant mode is handled by AI (does not exit assistant mode).
 - `@exit` exits assistant mode and returns close message.
 - `@assist` then `Remind me in half an hour to call my brother` should return a scheduled confirmation with resolved time.
@@ -224,6 +250,20 @@ Check:
 2. `ASSISTANT_SEARCH_API_KEY` is set (required for web search context).
 3. Timeouts: `ASSISTANT_AI_TIMEOUT_SECONDS` and `ASSISTANT_SEARCH_TIMEOUT_SECONDS`.
 4. Logs for: `openai_primary_request_succeeded`, `openai_primary_failed_attempting_fallback`, `both_openai_providers_failed`.
+
+### Live-data reliability checks
+
+If users report stale or incorrect live responses, verify in order:
+1. The relevant provider key exists for selected provider (`FINNHUB_API_KEY`, `SPORTSDATAIO_API_KEY`, etc.).
+2. Provider selection matches expected environment (`FINANCE_DATA_PROVIDER`, `SPORTS_DATA_PROVIDER`, `NEWS_PROVIDER`).
+3. Freshness controls are sane for traffic (`*_CACHE_SECONDS`, `*_STALE_AFTER_SECONDS`).
+4. Required timestamp enforcement settings (`FINANCE_REQUIRE_PROVIDER_TIMESTAMP`, `SPORTS_REQUIRE_PROVIDER_TIMESTAMP`) align with provider payload quality.
+5. Assistant logs indicate required tool path was used (finance/sports/news functions or web search for current_info).
+
+Expected safe-failure behavior:
+- Finance/sports/news tool failure: `I couldn't get reliable live data right now. Please try again shortly.`
+- Required web-search failure: `I couldn't access live information right now. Please try again shortly.`
+- Assistant should not claim successful live retrieval when required tool evidence is absent.
 
 If primary key fails, system automatically retries with `OPENAI_API_KEY_FALLBACK` (if set) on eligible errors:
 - Authentication failures (401): Invalid, expired, or disabled primary key.

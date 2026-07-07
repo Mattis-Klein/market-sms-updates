@@ -83,7 +83,7 @@ class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
             with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
                 await generate_assistant_reply(config, db, "+15550001111", "What is the news today?", [])
 
-            self.assertEqual(captured["tool_choice"], "required")
+            self.assertEqual(captured["tool_choice"], {"type": "function", "name": "get_current_news"})
 
     async def test_powerball_right_now_forces_web_search(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -155,7 +155,7 @@ class LiveInformationTests(unittest.IsolatedAsyncioTestCase):
                 return type("R", (), {"text": "Some stale model guess", "web_search_used": False, "web_search_failed": True})
 
             with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
-                reply, _ = await generate_assistant_reply(config, db, "+15550001111", "Latest news now", [])
+                reply, _ = await generate_assistant_reply(config, db, "+15550001111", "Weather right now", [])
 
             self.assertEqual(reply, ASSIST_WEB_SEARCH_FAILURE_REPLY)
 

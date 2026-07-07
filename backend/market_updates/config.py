@@ -37,6 +37,23 @@ class MarketConfig:
     reminder_retry_delay_seconds: int = 60
     reminder_processing_timeout_seconds: int = 300
     database_url: str = ""
+    finance_data_provider: str = "finnhub"
+    finnhub_api_key: str = ""
+    twelve_data_api_key: str = ""
+    fmp_api_key: str = ""
+    finance_cache_seconds: int = 15
+    finance_stale_after_seconds: int = 60
+    finance_require_provider_timestamp: bool = True
+    sports_data_provider: str = "sportsdataio"
+    sportsdataio_api_key: str = ""
+    sportradar_api_key: str = ""
+    sports_cache_seconds: int = 10
+    sports_stale_after_seconds: int = 45
+    sports_require_provider_timestamp: bool = True
+    news_provider: str = "openai_web_search"
+    news_force_reliable_sources: bool = True
+    news_max_results: int = 5
+    news_cache_seconds: int = 120
 
 
 def load_config() -> MarketConfig:
@@ -71,6 +88,23 @@ def load_config() -> MarketConfig:
         reminder_retry_delay_seconds=int(os.getenv("REMINDER_RETRY_DELAY_SECONDS", "60")),
         reminder_processing_timeout_seconds=int(os.getenv("REMINDER_PROCESSING_TIMEOUT_SECONDS", "300")),
         database_url=os.getenv("DATABASE_URL", ""),
+        finance_data_provider=os.getenv("FINANCE_DATA_PROVIDER", "finnhub"),
+        finnhub_api_key=os.getenv("FINNHUB_API_KEY", ""),
+        twelve_data_api_key=os.getenv("TWELVE_DATA_API_KEY", ""),
+        fmp_api_key=os.getenv("FMP_API_KEY", ""),
+        finance_cache_seconds=int(os.getenv("FINANCE_CACHE_SECONDS", "15")),
+        finance_stale_after_seconds=int(os.getenv("FINANCE_STALE_AFTER_SECONDS", "60")),
+        finance_require_provider_timestamp=os.getenv("FINANCE_REQUIRE_PROVIDER_TIMESTAMP", "true").lower() == "true",
+        sports_data_provider=os.getenv("SPORTS_DATA_PROVIDER", "sportsdataio"),
+        sportsdataio_api_key=os.getenv("SPORTSDATAIO_API_KEY", ""),
+        sportradar_api_key=os.getenv("SPORTRADAR_API_KEY", ""),
+        sports_cache_seconds=int(os.getenv("SPORTS_CACHE_SECONDS", "10")),
+        sports_stale_after_seconds=int(os.getenv("SPORTS_STALE_AFTER_SECONDS", "45")),
+        sports_require_provider_timestamp=os.getenv("SPORTS_REQUIRE_PROVIDER_TIMESTAMP", "true").lower() == "true",
+        news_provider=os.getenv("NEWS_PROVIDER", "openai_web_search"),
+        news_force_reliable_sources=os.getenv("NEWS_FORCE_RELIABLE_SOURCES", "true").lower() == "true",
+        news_max_results=int(os.getenv("NEWS_MAX_RESULTS", "5")),
+        news_cache_seconds=int(os.getenv("NEWS_CACHE_SECONDS", "120")),
     )
 
 

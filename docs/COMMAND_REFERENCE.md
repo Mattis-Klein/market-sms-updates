@@ -77,8 +77,16 @@ Start:
 While active:
 - All normal app keywords/messages route to assistant conversation mode for that phone number.
 - Current-information queries force OpenAI Responses API web search tool usage.
+- Live finance queries force one of: `get_live_quote`, `get_market_index_quote`, `get_crypto_quote`, `get_market_status`, `get_financial_news`.
+- Live sports queries force one of: `get_live_sports_scores`, `get_game_status`, `get_team_schedule`.
+- Current-news queries force: `get_current_news` (web search required inside tool).
 - Natural reminder requests can schedule reminders directly in assistant mode.
 - Reminder management requests are supported in assistant mode (list/cancel/update/delete-all with confirmation).
+
+Live-data safety behavior while active:
+- If required live tool call evidence is missing, assistant returns a safe fallback instead of guessing.
+- If required web search fails, assistant returns: `I couldn't access live information right now. Please try again shortly.`
+- Assistant output remains plain SMS text with no markdown and no links.
 
 Exit commands:
 - `@exit`

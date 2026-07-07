@@ -20,6 +20,17 @@ cd backend
 ../.venv/Scripts/python.exe -m pytest tests/test_assistant_mode.py tests/test_postgres_deployment.py -v
 ```
 
+Targeted live-data reliability tests:
+
+```bash
+cd backend
+../.venv/Scripts/python.exe -m pytest tests/test_live_data_tools.py tests/test_assistant_mode.py -q
+```
+
+Latest validated results:
+- Focused live-data and assistant suite: `58 passed`.
+- Full backend suite: `106 passed`.
+
 ## Current Coverage Focus
 
 - inbound SMS routing
@@ -33,12 +44,16 @@ cd backend
 - assistant image-request blocking and explicit-content refusal
 - assistant forced web-search behavior for current-information prompts
 - assistant search-failure safe response behavior
+- assistant live-data intent routing and required-tool enforcement
 - assistant-mode routing precedence over normal keyword handlers while active
 - natural-language reminder scheduling persistence, worker delivery, retry, and duplicate prevention
 - reminder ownership boundaries (users cannot manage reminders owned by other numbers)
 - dual-backend database selection (SQLite vs PostgreSQL)
 - migration safety behavior (backup, copy, destination non-empty refusal)
 - reminder-vs-current-info routing conflict protection
+- finance live quote delayed/stale handling and ambiguity handling
+- sports live score fallback, ambiguity handling, and timestamp enforcement
+- cache behavior for stale entries and short error TTL
 
 ## Test Philosophy
 
