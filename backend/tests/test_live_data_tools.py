@@ -41,8 +41,8 @@ class LiveDataBase(unittest.IsolatedAsyncioTestCase):
             openai_model="gpt-4o-mini",
             finance_data_provider="finnhub",
             finnhub_api_key="fh-key",
-            sports_data_provider="sportsdataio",
-            sportsdataio_api_key="sd-key",
+            sports_data_provider="theoddsapi",
+            the_odds_api_key="odds-secret-key",
         )
         merged = {**base.__dict__, **updates}
         return MarketConfig(**merged)
@@ -113,6 +113,7 @@ class IntentRoutingTests(LiveDataBase):
             await generate_assistant_reply(config, self.db, "+15550001111", "What's the Yankees score?", [])
 
         self.assertEqual(captured["tool_choice"]["name"], "get_live_sports_scores")
+        self.assertNotEqual(captured["tool_choice"], "required")
 
     async def test_news_routes_to_current_news_tool(self):
         config = self._config()
@@ -137,6 +138,19 @@ class IntentRoutingTests(LiveDataBase):
 
         with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
             await generate_assistant_reply(config, self.db, "+15550001111", "Remind me in 30 minutes to check AAPL", [])
+
+        self.assertEqual(captured["tool_choice"]["name"], "schedule_reminder")
+
+    async def test_sports_reminder_intent_stays_reminder(self):
+        config = self._config()
+        captured = {}
+
+        async def fake_execute(payload, *_):
+            captured["tool_choice"] = payload["tool_choice"]
+            return type("R", (), {"text": "Reminder set", "web_search_used": False, "web_search_failed": False, "called_functions": {"schedule_reminder"}})
+
+        with patch("market_updates.assistant_mode._execute_responses_loop", new=fake_execute):
+            await generate_assistant_reply(config, self.db, "+15550001111", "Remind me tomorrow to check the Yankees score", [])
 
         self.assertEqual(captured["tool_choice"]["name"], "schedule_reminder")
 
@@ -235,29 +249,102 @@ class FinanceToolTests(LiveDataBase):
 
 
 class SportsToolTests(LiveDataBase):
-    async def test_live_scores_plain_sms(self):
+    async def test_missing_api_key_returns_safe_error(self):
+        config = self._config(the_odds_api_key="")
+        result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
+        self.assertFalse(result.success)
+        self.assertEqual(result.human_summary, "I couldn't get reliable live sports data right now. Please try again shortly.")
+
+    async def test_provider_failure_returns_safe_error(self):
         config = self._config()
-        games = [{"AwayTeam": "BOS", "HomeTeam": "NYK", "AwayScore": 88, "HomeScore": 91, "Status": "InProgress", "Quarter": 4, "Clock": "4:12", "DateTimeUTC": datetime.now(timezone.utc).isoformat()}]
-        with patch("market_updates.live_data.sports._fetch_games_sportsdataio", new=AsyncMock(return_value=games)):
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(side_effect=RuntimeError("boom"))):
+            result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
+        self.assertFalse(result.success)
+        self.assertEqual(result.human_summary, "I couldn't get reliable live sports data right now. Please try again shortly.")
+
+    async def test_live_game_response_plain_sms(self):
+        config = self._config()
+        sports = [{"key": "basketball_nba", "group": "Basketball", "title": "NBA"}]
+        games = [
+            {
+                "id": "g1",
+                "sport_key": "basketball_nba",
+                "commence_time": "2026-07-06T23:00:00Z",
+                "home_team": "New York Knicks",
+                "away_team": "Los Angeles Lakers",
+                "completed": False,
+                "scores": [{"name": "Los Angeles Lakers", "score": "101"}, {"name": "New York Knicks", "score": "103"}],
+                "last_update": "2026-07-06T23:42:00Z",
+            }
+        ]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=games)
+        ):
             result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
         self.assertTrue(result.success)
-        self.assertIn("NBA scores", result.human_summary)
+        self.assertIn("in progress.", result.human_summary)
+        self.assertIn("Updated:", result.human_summary)
+        self.assertIn("Source: The Odds API", result.human_summary)
         self.assertNotIn("https://", result.human_summary)
+        self.assertNotIn("**", result.human_summary)
 
-    async def test_final_game_labeled_final(self):
+    async def test_final_game_response(self):
         config = self._config()
-        games = [{"AwayTeam": "NYY", "HomeTeam": "BOS", "AwayScore": 4, "HomeScore": 3, "Status": "Final", "DateTimeUTC": datetime.now(timezone.utc).isoformat()}]
-        with patch("market_updates.live_data.sports._fetch_games_sportsdataio", new=AsyncMock(return_value=games)):
+        sports = [{"key": "baseball_mlb", "group": "Baseball", "title": "MLB"}]
+        games = [
+            {
+                "id": "g2",
+                "sport_key": "baseball_mlb",
+                "commence_time": "2026-07-06T20:00:00Z",
+                "home_team": "Philadelphia Phillies",
+                "away_team": "New York Mets",
+                "completed": True,
+                "scores": [{"name": "New York Mets", "score": "6"}, {"name": "Philadelphia Phillies", "score": "2"}],
+                "last_update": "2026-07-07T02:14:00Z",
+            }
+        ]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=games)
+        ):
             result = await live_sports.get_live_sports_scores(config, "MLB", "2026-07-06")
         self.assertTrue(result.success)
         self.assertIn("final", result.human_summary.lower())
+        self.assertIn("Source: The Odds API", result.human_summary)
 
-    async def test_no_live_game_returns_safe_message(self):
+    async def test_upcoming_game_response(self):
         config = self._config()
-        with patch("market_updates.live_data.sports._fetch_games_sportsdataio", new=AsyncMock(return_value=[])):
-            result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
-        self.assertFalse(result.success)
-        self.assertIn("don't see a live", result.human_summary.lower())
+        sports = [{"key": "americanfootball_nfl", "group": "American Football", "title": "NFL"}]
+        games = [
+            {
+                "id": "g3",
+                "sport_key": "americanfootball_nfl",
+                "commence_time": "2026-07-06T17:00:00Z",
+                "home_team": "Buffalo Bills",
+                "away_team": "New York Jets",
+                "completed": False,
+                "scores": [],
+                "last_update": "2026-07-06T15:05:00Z",
+            },
+            {
+                "id": "g4",
+                "sport_key": "americanfootball_nfl",
+                "commence_time": "2026-07-06T20:25:00Z",
+                "home_team": "Philadelphia Eagles",
+                "away_team": "New York Giants",
+                "completed": False,
+                "scores": [],
+                "last_update": "2026-07-06T15:05:00Z",
+            },
+        ]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=games)
+        ):
+            result = await live_sports.get_live_sports_scores(config, "NFL", "2026-07-06")
+        self.assertTrue(result.success)
+        self.assertIn("NFL games today:", result.human_summary)
+        self.assertIn("1.", result.human_summary)
+        self.assertIn("2.", result.human_summary)
+        self.assertIn("Source: The Odds API", result.human_summary)
 
     async def test_ambiguous_team_asks_followup(self):
         config = self._config()
@@ -267,27 +354,128 @@ class SportsToolTests(LiveDataBase):
 
     async def test_unsupported_league_safe_message(self):
         config = self._config()
-        result = await live_sports.get_live_sports_scores(config, "EPL", "2026-07-06")
+        sports = [{"key": "basketball_nba", "group": "Basketball", "title": "NBA"}]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)):
+            result = await live_sports.get_live_sports_scores(config, "EPL", "2026-07-06")
         self.assertFalse(result.success)
-        self.assertIn("Unsupported league", result.human_summary)
+        self.assertEqual(result.human_summary, "I don't have reliable live scores for that league right now.")
 
     async def test_missing_timestamp_rejected_when_required(self):
         config = self._config(sports_require_provider_timestamp=True)
-        games = [{"AwayTeam": "BOS", "HomeTeam": "NYK", "AwayScore": 88, "HomeScore": 91, "Status": "InProgress"}]
-        with patch("market_updates.live_data.sports._fetch_games_sportsdataio", new=AsyncMock(return_value=games)):
+        sports = [{"key": "basketball_nba", "group": "Basketball", "title": "NBA"}]
+        games = [{"home_team": "New York Knicks", "away_team": "Los Angeles Lakers", "completed": False, "scores": []}]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=games)
+        ):
             result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
         self.assertFalse(result.success)
         self.assertEqual(result.raw_status, "missing_timestamp")
 
+    async def test_no_links_or_markdown_in_output(self):
+        config = self._config()
+        sports = [{"key": "basketball_nba", "group": "Basketball", "title": "NBA"}]
+        games = [
+            {
+                "id": "g5",
+                "sport_key": "basketball_nba",
+                "commence_time": "2026-07-06T23:00:00Z",
+                "home_team": "New York Knicks",
+                "away_team": "Los Angeles Lakers",
+                "completed": False,
+                "scores": [{"name": "Los Angeles Lakers", "score": "100"}, {"name": "New York Knicks", "score": "102"}],
+                "last_update": "2026-07-06T23:42:00Z",
+            }
+        ]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=games)
+        ):
+            result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
+        self.assertTrue(result.success)
+        self.assertNotIn("http://", result.human_summary)
+        self.assertNotIn("https://", result.human_summary)
+        self.assertNotIn("**", result.human_summary)
+        self.assertNotIn("[", result.human_summary)
+
+    async def test_api_key_never_appears_in_logs_or_responses(self):
+        api_key = "odds-secret-key"
+        config = self._config(the_odds_api_key=api_key)
+        sports = [{"key": "basketball_nba", "group": "Basketball", "title": "NBA"}]
+        games = [
+            {
+                "id": "g6",
+                "sport_key": "basketball_nba",
+                "commence_time": "2026-07-06T23:00:00Z",
+                "home_team": "New York Knicks",
+                "away_team": "Los Angeles Lakers",
+                "completed": False,
+                "scores": [{"name": "Los Angeles Lakers", "score": "100"}, {"name": "New York Knicks", "score": "102"}],
+                "last_update": "2026-07-06T23:42:00Z",
+            }
+        ]
+        with self.assertLogs("market_updates.live_data.sports", level="INFO") as logs, patch(
+            "market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)
+        ), patch("market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=games)):
+            result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
+
+        self.assertNotIn(api_key, "\n".join(logs.output))
+        self.assertNotIn(api_key, result.human_summary)
+        self.assertNotIn(api_key, str(result.to_tool_output()))
+
     async def test_sports_cache_hit_within_window(self):
         config = self._config(sports_cache_seconds=30, sports_stale_after_seconds=30)
-        games = [{"AwayTeam": "BOS", "HomeTeam": "NYK", "AwayScore": 88, "HomeScore": 91, "Status": "InProgress", "DateTimeUTC": datetime.now(timezone.utc).isoformat()}]
-        fetch = AsyncMock(return_value=games)
-        with patch("market_updates.live_data.sports._fetch_games_sportsdataio", new=fetch):
+        sports = [{"key": "basketball_nba", "group": "Basketball", "title": "NBA"}]
+        games = [
+            {
+                "id": "g7",
+                "sport_key": "basketball_nba",
+                "commence_time": "2026-07-06T23:00:00Z",
+                "home_team": "New York Knicks",
+                "away_team": "Los Angeles Lakers",
+                "completed": False,
+                "scores": [{"name": "Los Angeles Lakers", "score": "100"}, {"name": "New York Knicks", "score": "102"}],
+                "last_update": datetime.now(timezone.utc).isoformat(),
+            }
+        ]
+        fetch_sports = AsyncMock(return_value=sports)
+        fetch_scores = AsyncMock(return_value=games)
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=fetch_sports), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=fetch_scores
+        ):
             await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
             await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
-        self.assertEqual(fetch.await_count, 1)
+        self.assertEqual(fetch_scores.await_count, 1)
 
+    async def test_game_status_filters_by_team(self):
+        config = self._config()
+        sports = [{"key": "baseball_mlb", "group": "Baseball", "title": "MLB"}]
+        games = [
+            {
+                "id": "g8",
+                "sport_key": "baseball_mlb",
+                "commence_time": "2026-07-06T23:00:00Z",
+                "home_team": "Boston Red Sox",
+                "away_team": "New York Yankees",
+                "completed": False,
+                "scores": [{"name": "New York Yankees", "score": "4"}, {"name": "Boston Red Sox", "score": "3"}],
+                "last_update": "2026-07-06T23:42:00Z",
+            }
+        ]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=games)
+        ):
+            result = await live_sports.get_game_status(config, "MLB", "Yankees", "", "2026-07-06")
+        self.assertTrue(result.success)
+        self.assertIn("Yankees", result.human_summary)
+
+    async def test_no_games_returns_safe_message(self):
+        config = self._config()
+        sports = [{"key": "basketball_nba", "group": "Basketball", "title": "NBA"}]
+        with patch("market_updates.live_data.sports._fetch_theodds_sports", new=AsyncMock(return_value=sports)), patch(
+            "market_updates.live_data.sports._fetch_theodds_scores", new=AsyncMock(return_value=[])
+        ):
+            result = await live_sports.get_live_sports_scores(config, "NBA", "2026-07-06")
+        self.assertFalse(result.success)
+        self.assertEqual(result.human_summary, "I couldn't get reliable live sports data right now. Please try again shortly.")
 
 class CacheBehaviorTests(LiveDataBase):
     async def test_failed_responses_cache_short_ttl(self):

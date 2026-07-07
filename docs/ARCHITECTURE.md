@@ -65,7 +65,8 @@ OpenAI API Redundancy:
 
 Live data provider configuration:
 - Finance providers: `finnhub`, `twelvedata`, `fmp`.
-- Sports providers: `sportsdataio`, `sportradar` (placeholder-safe path currently returns controlled fallback unless configured endpoint is implemented).
+- Sports providers: `theoddsapi`, `sportsdataio`, `sportradar`.
+- The Odds API integration uses `/v4/sports` discovery and `/v4/sports/{sport_key}/scores` for live/latest/final game state.
 - News provider: `openai_web_search`.
 - Freshness and honesty controls are enforced through provider timestamps, stale thresholds, and tool-call verification in assistant routing.
 

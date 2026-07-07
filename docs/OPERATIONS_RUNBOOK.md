@@ -50,7 +50,8 @@ Live current-data providers:
 - `FINANCE_CACHE_SECONDS` (default: `15`)
 - `FINANCE_STALE_AFTER_SECONDS` (default: `60`)
 - `FINANCE_REQUIRE_PROVIDER_TIMESTAMP` (default: `true`)
-- `SPORTS_DATA_PROVIDER` (default: `sportsdataio`; supported: `sportsdataio`, `sportradar`)
+- `SPORTS_DATA_PROVIDER` (default: `sportsdataio`; supported: `theoddsapi`, `sportsdataio`, `sportradar`)
+- `THE_ODDS_API_KEY`
 - `SPORTSDATAIO_API_KEY`
 - `SPORTRADAR_API_KEY`
 - `SPORTS_CACHE_SECONDS` (default: `10`)
@@ -254,16 +255,22 @@ Check:
 ### Live-data reliability checks
 
 If users report stale or incorrect live responses, verify in order:
-1. The relevant provider key exists for selected provider (`FINNHUB_API_KEY`, `SPORTSDATAIO_API_KEY`, etc.).
+1. The relevant provider key exists for selected provider (`FINNHUB_API_KEY`, `THE_ODDS_API_KEY`, `SPORTSDATAIO_API_KEY`, etc.).
 2. Provider selection matches expected environment (`FINANCE_DATA_PROVIDER`, `SPORTS_DATA_PROVIDER`, `NEWS_PROVIDER`).
 3. Freshness controls are sane for traffic (`*_CACHE_SECONDS`, `*_STALE_AFTER_SECONDS`).
 4. Required timestamp enforcement settings (`FINANCE_REQUIRE_PROVIDER_TIMESTAMP`, `SPORTS_REQUIRE_PROVIDER_TIMESTAMP`) align with provider payload quality.
 5. Assistant logs indicate required tool path was used (finance/sports/news functions or web search for current_info).
 
 Expected safe-failure behavior:
-- Finance/sports/news tool failure: `I couldn't get reliable live data right now. Please try again shortly.`
+- Sports provider failure: `I couldn't get reliable live sports data right now. Please try again shortly.`
+- Finance/news tool failure: `I couldn't get reliable live data right now. Please try again shortly.`
 - Required web-search failure: `I couldn't access live information right now. Please try again shortly.`
 - Assistant should not claim successful live retrieval when required tool evidence is absent.
+
+The Odds API notes:
+- Sports discovery endpoint used: `GET /v4/sports`.
+- Live/latest schedule-scores endpoint used: `GET /v4/sports/{sport}/scores`.
+- Do not include betting odds unless user explicitly asks for odds.
 
 If primary key fails, system automatically retries with `OPENAI_API_KEY_FALLBACK` (if set) on eligible errors:
 - Authentication failures (401): Invalid, expired, or disabled primary key.

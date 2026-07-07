@@ -47,6 +47,7 @@ class MarketConfig:
     sports_data_provider: str = "sportsdataio"
     sportsdataio_api_key: str = ""
     sportradar_api_key: str = ""
+    the_odds_api_key: str = ""
     sports_cache_seconds: int = 10
     sports_stale_after_seconds: int = 45
     sports_require_provider_timestamp: bool = True
@@ -98,6 +99,7 @@ def load_config() -> MarketConfig:
         sports_data_provider=os.getenv("SPORTS_DATA_PROVIDER", "sportsdataio"),
         sportsdataio_api_key=os.getenv("SPORTSDATAIO_API_KEY", ""),
         sportradar_api_key=os.getenv("SPORTRADAR_API_KEY", ""),
+        the_odds_api_key=os.getenv("THE_ODDS_API_KEY", ""),
         sports_cache_seconds=int(os.getenv("SPORTS_CACHE_SECONDS", "10")),
         sports_stale_after_seconds=int(os.getenv("SPORTS_STALE_AFTER_SECONDS", "45")),
         sports_require_provider_timestamp=os.getenv("SPORTS_REQUIRE_PROVIDER_TIMESTAMP", "true").lower() == "true",

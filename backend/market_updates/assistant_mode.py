@@ -239,10 +239,10 @@ def has_news_intent(message: str) -> bool:
 def classify_intent(message: str, force_web_enabled: bool) -> str:
     if has_reminder_intent(message):
         return "reminder"
-    if has_finance_intent(message):
-        return "finance_live"
     if has_sports_intent(message):
         return "sports_live"
+    if has_finance_intent(message):
+        return "finance_live"
     if has_news_intent(message):
         return "current_news"
     if should_force_web_search(message, force_web_enabled):

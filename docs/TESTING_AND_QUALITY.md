@@ -1,6 +1,6 @@
 # Testing and Quality
 
-Date: 2026-06-29
+Date: 2026-07-06
 
 ## Test Runner
 
@@ -28,8 +28,8 @@ cd backend
 ```
 
 Latest validated results:
-- Focused live-data and assistant suite: `58 passed`.
-- Full backend suite: `106 passed`.
+- Focused live-data and assistant suite: `65 passed`.
+- Full backend suite: `113 passed`.
 
 ## Current Coverage Focus
 

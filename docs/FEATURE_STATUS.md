@@ -54,6 +54,7 @@ Date: 2026-06-30
 - **NEW:** Reliable live current-data tools with strict intent routing and tool enforcement.
   - Finance intents route to provider-backed quote/index/crypto/status/news tools.
   - Sports intents route to provider-backed score/status/schedule tools.
+  - The Odds API is now supported as sports provider (`SPORTS_DATA_PROVIDER=theoddsapi`) using v4 sports discovery and scores endpoints.
   - Current-news intents route to required web-search-backed news tool.
   - Assistant enforces required tool-call evidence for live intents and returns safe fallback if tool evidence is missing.
   - Live-data outputs include freshness metadata (`retrieved_at_utc`, provider timestamp, delayed flags, confidence).
@@ -106,5 +107,5 @@ Date: 2026-06-30
 - Add stronger auth (SSO/JWT) for admin and feedback portal.
 - Add retry/queueing for outbound and forwarding failures.
 - Expand CI and quality gates beyond current focused unit coverage.
-- Sports `sportradar` provider is configuration-ready but currently returns a controlled fallback until endpoint integration is completed.
+- Sports unsupported-league fallback is explicit: `I don't have reliable live scores for that league right now.`
 - Production readiness remains gated on live proof: do not declare fully production-ready until a reminder is created by the web service and delivered by a separately running worker using the same persistent PostgreSQL database.

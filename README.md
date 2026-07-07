@@ -100,7 +100,8 @@ Live current-data providers and freshness controls:
 - `FINANCE_CACHE_SECONDS` (default: `15`)
 - `FINANCE_STALE_AFTER_SECONDS` (default: `60`)
 - `FINANCE_REQUIRE_PROVIDER_TIMESTAMP` (default: `true`)
-- `SPORTS_DATA_PROVIDER` (default: `sportsdataio`; supported: `sportsdataio`, `sportradar`)
+- `SPORTS_DATA_PROVIDER` (default: `sportsdataio`; supported: `theoddsapi`, `sportsdataio`, `sportradar`)
+- `THE_ODDS_API_KEY`
 - `SPORTSDATAIO_API_KEY`
 - `SPORTRADAR_API_KEY`
 - `SPORTS_CACHE_SECONDS` (default: `10`)
@@ -123,6 +124,7 @@ Reliability behavior:
 - if web search is required but missing or failed, reply falls back to safe live-info failure text
 - responses are sanitized to plain SMS text with no markdown and no links
 - short in-memory TTL caches are used for fast responses; error results are cached only briefly
+- when sports provider is `theoddsapi`, live scores come from The Odds API v4 sports discovery + scores endpoints
 
 Persistent reminders environment:
 - `REMINDERS_ENABLED` (default: `true`)
