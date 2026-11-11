@@ -7,9 +7,9 @@ Created backup from local HEAD 9572fbbaedab4620fd80cd1c78eb13c0d509a0b6. Live re
 - 072a3ae: Add reliable live-data tools for @assist with tests/docs
 - 9572fbb: Add The Odds API live sports provider for @assist
 
-The additional report commit documents the exclusions. Main is unchanged. No cleanup or application tests were performed. Credential-pattern matches in the changed files were inspected and were configuration references or test placeholders; this is not a guarantee of a complete historical secret audit.
+The additional report commit documents the exclusions. Main is unchanged. No cleanup was performed during the original backup; subsequent authorized cleanup is recorded below. No application tests were run. Credential-pattern matches in the changed files were inspected and were configuration references or test placeholders; this is not a guarantee of a complete historical secret audit.
 
-## Excluded files
+## Excluded files (inventory before cleanup)
 3,056 ignored files totaling 45,383,754 logical bytes (43.28 MiB). Existing Git ignore rules were honored.
 
 | Category | Files | Bytes | MiB |
@@ -22,9 +22,9 @@ The additional report commit documents the exclusions. Main is unchanged. No cle
 ## Database retained locally
 `backend/backend/data/market_updates.sqlite` is 61,440 bytes. SQLite was opened in read-only mode; quick_check returned ok. All eight tables contained zero rows at inspection: market_sms_sessions, market_notifications, sqlite_sequence, market_sms_allowlist, market_sms_invite_requests, market_feedback_entries, market_assistant_sessions, market_scheduled_reminders. No database contents were uploaded.
 
-This empty local database is not evidence about server-side or other database copies. Retain it pending explicit cleanup approval. If it accumulates data, preserve a consistent private backup before deleting it.
+This empty local database is not evidence about server-side or other database copies. The database was retained during the authorized dependency/cache cleanup. If it accumulates data, preserve a consistent private backup before deleting it.
 
-## Cleanup candidates — not yet deleted
+## Approved cleanup candidates (subsequently removed)
 - `.venv/`: reinstallable Python dependencies (42.67 MiB). Recreate from project requirements; exact environment reproduction was not tested.
 - Python bytecode and pytest caches: regenerable (about 0.55 MiB combined).
 - Candidate total: 45,322,314 bytes (43.22 MiB). Stop any running project processes before removing dependencies.
@@ -35,4 +35,25 @@ Clone this repository and check out backup. Recreate the Python environment, ins
 [Full excluded-file inventory](excluded-files.csv) lists every enumerated ignored file and byte size. Restricted pytest cache folders were included using elevated read access. No enumeration warnings or metadata read errors occurred. The inventory is a point-in-time metadata listing, not an atomic data backup.
 
 ## Running cleanup total
-No files deleted from Market SMS Assistant. Prior cleanup total: 1,068,767,116 bytes (1,019.26 MiB), from Waze Device and AI-SMS-Agent. The local running ledger is C:/Users/owner/Documents/storage-cleanup-ledger.json.
+Before this project cleanup, the total was 1,068,767,116 bytes from Waze Device and AI-SMS-Agent. Updated totals are recorded below. The local running ledger is C:/Users/owner/Documents/storage-cleanup-ledger.json.
+
+## Authorized cleanup: 2026-11-10
+
+Removed 3055 files totaling 45322314 logical bytes (43.22 MiB).
+
+| Removed path | Files | Bytes removed | Bytes remaining |
+|---|---:|---:|---:|
+| .venv | 2976 | 44741895 | 0 |
+| .pytest_cache | 5 | 594 | 0 |
+| backend/.pytest_cache | 5 | 14691 | 0 |
+| backend/app/__pycache__ | 1 | 3925 | 0 |
+| backend/market_updates/__pycache__ | 31 | 256692 | 0 |
+| backend/market_updates/live_data/__pycache__ | 6 | 54069 | 0 |
+| backend/scripts/__pycache__ | 2 | 7825 | 0 |
+| backend/tests/__pycache__ | 29 | 242623 | 0 |
+
+Only the approved .venv, Python bytecode caches and pytest caches were removed. The 61,440-byte backend/backend/data/market_updates.sqlite database, source, requirements, documentation and Git history were retained. No matching project processes were found during the pre-cleanup check. Recreate the environment and reinstall dependencies before running the app again.
+
+Running total across Waze Device, AI-SMS-Agent and Market SMS Assistant: 1114089430 logical bytes (1062.48 MiB). Actual disk allocation recovered may differ.
+
+The original excluded-files.csv remains a historical pre-cleanup inventory, not a list of files still present. No database contents were uploaded. Main remains unchanged.
